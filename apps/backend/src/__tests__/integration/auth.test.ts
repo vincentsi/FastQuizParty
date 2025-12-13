@@ -77,7 +77,7 @@ describe('Auth Routes Integration Tests', () => {
         url: '/api/auth/register',
         payload: {
           email,
-          password: '123456', // Exactly 6 chars
+          password: 'abc123', // Exactly 6 chars, not in common passwords list
           name: 'Test User',
         },
       })
