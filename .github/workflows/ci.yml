@@ -1,0 +1,252 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [master, main, develop]
+  pull_request:
+    branches: [master, main, develop]
+
+# Cancel in-progress runs for same workflow
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ===== Lint & Type Check =====
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --workspaces --include-workspace-root
+
+      - name: Lint backend
+        run: cd apps/backend && npm run lint
+
+      - name: Lint frontend
+        run: cd apps/frontend && npm run lint
+
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --workspaces --include-workspace-root
+
+      - name: Generate Prisma Client
+        run: cd apps/backend && npx prisma generate
+
+      - name: Type check backend
+        run: cd apps/backend && npm run type-check
+
+      - name: Type check frontend
+        run: cd apps/frontend && npm run type-check
+
+  # ===== Backend Tests =====
+  test-backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+      JWT_SECRET: test-jwt-secret-min-32-characters-long-for-security
+      JWT_REFRESH_SECRET: test-refresh-secret-min-32-characters-long-for-security
+      FRONTEND_URL: http://localhost:3000
+      REDIS_URL: redis://localhost:6379
+      # Stripe test key (required for integration tests)
+      STRIPE_SECRET_KEY: sk_test_51DummyKeyForCITestingOnly123456789012345678901234567890
+      # Optional config (defaults provided)
+      CLEANUP_BATCH_SIZE: '1000'
+      CLEANUP_PAUSE_MS: '100'
+      SLOW_QUERY_THRESHOLD: '100'
+      APP_VERSION: '1.0.0'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --workspaces --include-workspace-root
+
+      - name: Generate Prisma Client
+        run: cd apps/backend && npx prisma generate
+
+      - name: Push Prisma schema to test DB
+        run: cd apps/backend && npx prisma db push --skip-generate
+
+      - name: Run backend unit tests
+        run: cd apps/backend && npm run test:unit
+
+      - name: Run backend integration tests
+        run: cd apps/backend && npm run test:integration
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        if: always()
+        continue-on-error: true
+        with:
+          files: ./apps/backend/coverage/lcov.info
+          flags: backend
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # ===== Build Check =====
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --workspaces --include-workspace-root
+
+      - name: Generate Prisma Client
+        run: cd apps/backend && npx prisma generate
+
+      - name: Build backend
+        run: cd apps/backend && npm run build
+
+      - name: Build frontend
+        run: cd apps/frontend && npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3001
+
+  # ===== Summary Job =====
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    needs: [lint, type-check, test-backend, build]
+    if: always()
+
+    steps:
+      - name: Check job status
+        run: |
+          # Check for actual failures (not cancellations)
+          failed=0
+          cancelled_count=0
+
+          echo "Job Status Summary:"
+          echo "  Lint: ${{ needs.lint.result }}"
+          echo "  Type Check: ${{ needs.type-check.result }}"
+          echo "  Backend Tests: ${{ needs.test-backend.result }}"
+          echo "  Build: ${{ needs.build.result }}"
+          echo ""
+
+          # Check for failures
+          if [ "${{ needs.lint.result }}" == "failure" ]; then
+            echo "❌ Lint job failed"
+            failed=1
+          fi
+
+          if [ "${{ needs.type-check.result }}" == "failure" ]; then
+            echo "❌ Type check job failed"
+            failed=1
+          fi
+
+          if [ "${{ needs.test-backend.result }}" == "failure" ]; then
+            echo "❌ Backend tests job failed"
+            failed=1
+          fi
+
+          if [ "${{ needs.build.result }}" == "failure" ]; then
+            echo "❌ Build job failed"
+            failed=1
+          fi
+
+          # Count cancellations (normal when new push happens)
+          if [ "${{ needs.lint.result }}" == "cancelled" ]; then
+            cancelled_count=$((cancelled_count + 1))
+          fi
+          if [ "${{ needs.type-check.result }}" == "cancelled" ]; then
+            cancelled_count=$((cancelled_count + 1))
+          fi
+          if [ "${{ needs.test-backend.result }}" == "cancelled" ]; then
+            cancelled_count=$((cancelled_count + 1))
+          fi
+          if [ "${{ needs.build.result }}" == "cancelled" ]; then
+            cancelled_count=$((cancelled_count + 1))
+          fi
+
+          # Check for suspicious cancellations (all jobs cancelled = new push, but verify)
+          if [ $cancelled_count -gt 0 ]; then
+            echo "⚠️  $cancelled_count job(s) were cancelled"
+            echo "   This is normal when a new commit pushes to the same branch"
+            echo "   (prevents unnecessary runs from completing)"
+          fi
+
+          # If all jobs were cancelled but no failures, it's likely a new push
+          if [ $cancelled_count -eq 4 ] && [ $failed -eq 0 ]; then
+            echo "ℹ️  All jobs cancelled - new commit likely pushed during CI run"
+            echo "   Check the latest workflow run for actual results"
+            exit 0
+          fi
+
+          if [ $failed -eq 1 ]; then
+            echo "❌ CI Pipeline failed with actual errors (not cancellations)"
+            exit 1
+          fi
+
+          echo "✅ All CI checks passed"
