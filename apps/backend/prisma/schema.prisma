@@ -33,6 +33,19 @@ model User {
   // Soft delete
   deletedAt DateTime?
 
+  // Game Relations
+  hostedGames    Game[]       @relation("HostedGames")
+  playedGames    GamePlayer[] @relation("PlayedGames")
+  createdQuizzes Quiz[]
+
+  // Stats
+  stats UserStats?
+
+  // Premium
+  premiumUntil  DateTime?
+  aiQuota       Int      @default(0)
+  aiQuotaResetAt DateTime?
+
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   refreshTokens      RefreshToken[]
@@ -166,4 +179,268 @@ enum PlanType {
   FREE // Plan gratuit
   PRO // Plan Pro ($15/mois)
   BUSINESS // Plan Business ($50/mois)
+}
+
+// ==========================================
+// QUIZ & QUESTIONS
+// ==========================================
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  icon        String?
+  color       String?
+
+  quizzes Quiz[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+  @@map("categories")
+}
+
+model Quiz {
+  id          String     @id @default(cuid())
+  title       String
+  description String?    @db.Text
+  thumbnail   String?
+
+  // Ownership
+  authorId String?
+  author   User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  // Settings
+  isPublic   Boolean    @default(false)
+  isPremium  Boolean    @default(false)
+  difficulty Difficulty @default(MIXED)
+
+  // AI Generated
+  isAiGenerated Boolean @default(false)
+  aiPrompt      String? @db.Text
+  aiModel       String?
+
+  // Categories
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  // Tags
+  tags String[]
+
+  // Relations
+  questions Question[]
+  games     Game[]
+
+  // Stats
+  playCount    Int   @default(0)
+  avgRating    Float?
+  totalRatings Int   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([authorId])
+  @@index([categoryId])
+  @@index([isPublic])
+  @@index([isPremium])
+  @@index([isAiGenerated])
+  @@index([createdAt])
+  @@index([isPublic, categoryId])
+  @@map("quizzes")
+}
+
+model Question {
+  id         String @id @default(cuid())
+  quizId     String
+  quiz       Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  // Content
+  text          String     @db.Text
+  explanation   String?    @db.Text
+  options       Json
+  correctAnswer Int
+
+  // Metadata
+  difficulty Difficulty @default(MEDIUM)
+  timeLimit  Int        @default(15)
+  points     Int        @default(1000)
+  order      Int
+
+  // Media
+  imageUrl String?
+  videoUrl String?
+
+  // AI
+  isAiGenerated Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([quizId, order])
+  @@index([quizId])
+  @@index([difficulty])
+  @@map("questions")
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+  MIXED
+}
+
+// ==========================================
+// GAME SESSIONS
+// ==========================================
+
+model Game {
+  id   String @id @default(cuid())
+  code String @unique
+
+  // Quiz
+  quizId String
+  quiz   Quiz   @relation(fields: [quizId], references: [id], onDelete: Restrict)
+
+  // Host
+  hostId String
+  host   User   @relation("HostedGames", fields: [hostId], references: [id], onDelete: Restrict)
+
+  // Settings
+  maxPlayers   Int     @default(10)
+  questionTime Int     @default(15)
+  isPrivate    Boolean @default(false)
+  password     String?
+
+  // Status
+  status GameStatus @default(WAITING)
+
+  // Players & Results
+  players GamePlayer[]
+
+  // Stats
+  totalQuestions Int?
+  avgScore       Float?
+
+  // Timestamps
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([code])
+  @@index([hostId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([quizId])
+  @@index([hostId, status])
+  @@map("games")
+}
+
+enum GameStatus {
+  WAITING
+  STARTING
+  PLAYING
+  FINISHED
+  CANCELLED
+}
+
+model GamePlayer {
+  id String @id @default(cuid())
+
+  // Game
+  gameId String
+  game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  // Player
+  userId   String?
+  user     User?   @relation("PlayedGames", fields: [userId], references: [id], onDelete: SetNull)
+  username String
+  avatar   String?
+
+  // Stats
+  score           Int   @default(0)
+  rank            Int?
+  correctAnswers  Int   @default(0)
+  totalAnswers    Int   @default(0)
+  avgResponseTime Float?
+
+  // Answers
+  answers PlayerAnswer[]
+
+  // State
+  isHost      Boolean  @default(false)
+  isConnected Boolean  @default(true)
+  lastSeen    DateTime @default(now())
+
+  // Metadata
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+
+  @@unique([gameId, userId])
+  @@index([gameId])
+  @@index([userId])
+  @@index([score])
+  @@map("game_players")
+}
+
+model PlayerAnswer {
+  id String @id @default(cuid())
+
+  gamePlayerId String
+  gamePlayer   GamePlayer @relation(fields: [gamePlayerId], references: [id], onDelete: Cascade)
+
+  questionId String
+
+  answer       Int
+  isCorrect    Boolean
+  responseTime Int
+  points       Int
+
+  timestamp DateTime @default(now())
+
+  @@unique([gamePlayerId, questionId])
+  @@index([gamePlayerId])
+  @@index([questionId])
+  @@map("player_answers")
+}
+
+// ==========================================
+// USER STATS
+// ==========================================
+
+model UserStats {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Global Stats
+  totalGames  Int @default(0)
+  totalWins   Int @default(0)
+  totalLosses Int @default(0)
+  totalPoints Int @default(0)
+
+  // Performance
+  avgScore        Float @default(0)
+  avgAccuracy     Float @default(0)
+  avgResponseTime Float @default(0)
+  bestScore       Int   @default(0)
+
+  // Streaks
+  currentStreak Int @default(0)
+  longestStreak Int @default(0)
+
+  // By Difficulty
+  easyWins   Int @default(0)
+  mediumWins Int @default(0)
+  hardWins   Int @default(0)
+
+  // Last Activity
+  lastGameAt DateTime?
+  lastWinAt  DateTime?
+
+  updatedAt DateTime @updatedAt
+
+  @@map("user_stats")
 }

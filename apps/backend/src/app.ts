@@ -16,6 +16,7 @@ import { adminRoutes } from '@/routes/admin.route'
 import { stripeRoutes } from '@/routes/stripe.route'
 import { premiumRoutes } from '@/routes/premium.route'
 import { gdprRoutes } from '@/routes/gdpr.route'
+import { quizRoutes } from '@/modules/quiz/routes/quiz.route'
 
 /**
  * Create and configure Fastify application
@@ -77,6 +78,7 @@ export async function createApp(): Promise<FastifyInstance> {
         { name: 'admin', description: 'Admin-only endpoints (requires ADMIN role)' },
         { name: 'stripe', description: 'Stripe subscription endpoints' },
         { name: 'premium', description: 'Premium feature endpoints (requires subscription)' },
+        { name: 'quiz', description: 'Quiz and question management endpoints' },
       ],
       components: {
         securitySchemes: {
@@ -139,6 +141,7 @@ export async function createApp(): Promise<FastifyInstance> {
   await app.register(adminRoutes, { prefix: '/api/admin' })
   await app.register(stripeRoutes, { prefix: '/api/stripe' })
   await app.register(premiumRoutes, { prefix: '/api/premium' })
+  await app.register(quizRoutes, { prefix: '/api' })
 
   return app
 }

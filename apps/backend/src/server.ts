@@ -5,9 +5,11 @@ import {
   initializeRedis,
   isRedisAvailable,
 } from '@/config/redis'
+import { setupSocketIO } from '@/config/socket'
 import { startStripeWebhookWorker } from '@/queues/stripe-webhook.queue'
 import { logger } from '@/utils/logger'
 import type { FastifyInstance } from 'fastify'
+import type { Server as SocketIOServer } from 'socket.io'
 import { createApp } from './app'
 
 /**
@@ -23,6 +25,7 @@ import { createApp } from './app'
 initializeRedis()
 
 let app: FastifyInstance | null = null
+let io: SocketIOServer | null = null
 
 async function start() {
   try {
@@ -32,6 +35,10 @@ async function start() {
     // Start server
     const port = Number(env.PORT)
     await app.listen({ port, host: '0.0.0.0' })
+
+    // Setup Socket.IO
+    io = await setupSocketIO(app.server)
+    logger.info('🔌 Socket.IO server initialized')
 
     // Start Stripe webhook worker (unless explicitly disabled)
     // Wait a bit for Redis to be ready
@@ -72,6 +79,11 @@ async function start() {
  */
 async function cleanup() {
   try {
+    if (io) {
+      logger.info('🔌 Closing Socket.IO server...')
+      io.close()
+    }
+
     if (app) {
       logger.info('🔌 Closing server...')
       await app.close()
