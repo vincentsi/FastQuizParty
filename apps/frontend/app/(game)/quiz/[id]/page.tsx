@@ -6,8 +6,9 @@ import { quizApi } from '@/lib/api/quiz'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, Play, Clock, TrendingUp } from 'lucide-react'
+import { ArrowLeft, Play, Clock, TrendingUp, Users } from 'lucide-react'
 import Link from 'next/link'
+import { CreateRoomDialog } from '@/components/room'
 
 export default function QuizDetailPage() {
   const params = useParams()
@@ -156,12 +157,21 @@ export default function QuizDetailPage() {
         </Card>
       </div>
 
-      {/* Start Quiz Button */}
-      <div className="mb-8">
-        <Button size="lg" className="w-full sm:w-auto" asChild>
+      {/* Action Buttons */}
+      <div className="mb-8 flex flex-wrap gap-3">
+        <CreateRoomDialog
+          quizId={quiz.id}
+          trigger={
+            <Button size="lg" variant="default">
+              <Users className="mr-2 h-5 w-5" />
+              Create Room
+            </Button>
+          }
+        />
+        <Button size="lg" variant="outline" asChild>
           <Link href={`/play/${quiz.id}`}>
             <Play className="mr-2 h-5 w-5" />
-            Start Quiz
+            Solo Play
           </Link>
         </Button>
       </div>
