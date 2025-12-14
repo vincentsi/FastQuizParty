@@ -1,14 +1,25 @@
 import { prisma } from '@/config/prisma'
 import { logger } from '@/utils/logger'
-import type { Prisma } from '@prisma/client'
+import type { Prisma, Quiz, Question, Category } from '@prisma/client'
+import { CacheService, CacheKeys } from '@/services/cache.service'
 import type { CreateQuizDto, UpdateQuizDto, GetQuizzesQuery } from '../schemas/quiz.schema'
+
+type QuizWithRelations = Quiz & {
+  category: Category | null
+  author: { id: string; name: string | null } | null
+  questions?: Question[]
+  _count: { questions: number }
+}
 
 export class QuizService {
   /**
-   * Get all quizzes with pagination and filters
+   * Get all quizzes with cursor-based pagination and filters
    */
   async getQuizzes(query: GetQuizzesQuery, userId?: string) {
     const { page, limit, categoryId, difficulty, isPublic, search } = query
+
+    // Pour la compatibilité avec le frontend existant, on garde page/limit
+    // mais on les convertit en cursor-based en interne
     const skip = (page - 1) * limit
 
     const where: Prisma.QuizWhereInput = {}
@@ -34,6 +45,23 @@ export class QuizService {
     // If authenticated, show public quizzes + user's own quizzes
     if (userId && isPublic === undefined) {
       where.OR = [{ isPublic: true }, { authorId: userId }]
+    }
+
+    // Build cache key from filters
+    const filterKey = JSON.stringify({ categoryId, difficulty, isPublic, search, userId })
+    const cacheKey = CacheKeys.quizList(page, filterKey)
+
+    // Try cache first
+    const cached = await CacheService.get<{
+      quizzes: unknown[]
+      total: number
+      page: number
+      limit: number
+      totalPages: number
+    }>(cacheKey)
+
+    if (cached) {
+      return cached
     }
 
     const [quizzes, total] = await Promise.all([
@@ -68,19 +96,35 @@ export class QuizService {
       prisma.quiz.count({ where }),
     ])
 
-    return {
+    const result = {
       quizzes,
       total,
       page,
       limit,
       totalPages: Math.ceil(total / limit),
     }
+
+    // Cache for 5 minutes (quiz lists change frequently)
+    await CacheService.set(cacheKey, result, 300)
+
+    return result
   }
 
   /**
-   * Get quiz by ID with questions
+   * Get quiz by ID with questions (with cache)
    */
-  async getQuizById(id: string, includeQuestions = false) {
+  async getQuizById(id: string, includeQuestions = false): Promise<QuizWithRelations> {
+    // Cache key depends on whether questions are included
+    const cacheKey = includeQuestions
+      ? CacheKeys.quizQuestions(id)
+      : CacheKeys.quiz(id)
+
+    // Try cache first
+    const cached = await CacheService.get<QuizWithRelations>(cacheKey)
+    if (cached) {
+      return cached
+    }
+
     const quiz = await prisma.quiz.findUnique({
       where: { id },
       include: {
@@ -107,6 +151,9 @@ export class QuizService {
     if (!quiz) {
       throw new Error('Quiz not found')
     }
+
+    // Cache for 1 hour (quiz data doesn't change often)
+    await CacheService.set(cacheKey, quiz, 3600)
 
     return quiz
   }
@@ -145,6 +192,9 @@ export class QuizService {
 
     logger.info({ quizId: quiz.id, authorId }, 'Quiz created')
 
+    // Invalidate quiz list cache
+    await CacheService.deletePattern('quiz:list:*')
+
     return quiz
   }
 
@@ -179,6 +229,11 @@ export class QuizService {
 
     logger.info({ quizId: id, userId }, 'Quiz updated')
 
+    // Invalidate cache for this quiz
+    await CacheService.delete(CacheKeys.quiz(id))
+    await CacheService.delete(CacheKeys.quizQuestions(id))
+    await CacheService.deletePattern('quiz:list:*')
+
     return updated
   }
 
@@ -205,6 +260,11 @@ export class QuizService {
     })
 
     logger.info({ quizId: id, userId }, 'Quiz deleted')
+
+    // Invalidate cache
+    await CacheService.delete(CacheKeys.quiz(id))
+    await CacheService.delete(CacheKeys.quizQuestions(id))
+    await CacheService.deletePattern('quiz:list:*')
   }
 
   /**
@@ -219,6 +279,10 @@ export class QuizService {
         },
       },
     })
+
+    // Invalidate cache since play count changed
+    await CacheService.delete(CacheKeys.quiz(quizId))
+    await CacheService.delete(CacheKeys.quizQuestions(quizId))
   }
 }
 

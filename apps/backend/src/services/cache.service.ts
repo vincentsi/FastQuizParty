@@ -329,4 +329,9 @@ export const CacheKeys = {
 
   // Session cache (optional)
   session: (sessionId: string) => `session:${sessionId}`,
+
+  // Quiz cache
+  quiz: (quizId: string) => `quiz:${quizId}`,
+  quizList: (page: number, filters: string) => `quiz:list:${page}:${filters}`,
+  quizQuestions: (quizId: string) => `quiz:${quizId}:questions`,
 } as const
