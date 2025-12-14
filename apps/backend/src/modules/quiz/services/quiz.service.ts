@@ -1,5 +1,6 @@
 import { prisma } from '@/config/prisma'
 import { logger } from '@/utils/logger'
+import type { Prisma } from '@prisma/client'
 import type { CreateQuizDto, UpdateQuizDto, GetQuizzesQuery } from '../schemas/quiz.schema'
 
 export class QuizService {
@@ -10,7 +11,7 @@ export class QuizService {
     const { page, limit, categoryId, difficulty, isPublic, search } = query
     const skip = (page - 1) * limit
 
-    const where: any = {}
+    const where: Prisma.QuizWhereInput = {}
 
     // Filters
     if (categoryId) where.categoryId = categoryId

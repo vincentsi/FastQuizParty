@@ -67,14 +67,22 @@ Réponds uniquement en JSON valide.`
 
       return {
         title: parsed.title || prompt,
-        questions: parsed.questions.map((q: any, index: number) => ({
-          text: q.text,
-          options: q.options,
-          correctAnswer: q.correctAnswer,
-          explanation: q.explanation,
-          difficulty,
-          order: index + 1,
-        })),
+        questions: parsed.questions.map((q: unknown, index: number) => {
+          const question = q as {
+            text: string
+            options: string[]
+            correctAnswer: number
+            explanation?: string
+          }
+          return {
+            text: question.text,
+            options: question.options,
+            correctAnswer: question.correctAnswer,
+            explanation: question.explanation,
+            difficulty,
+            order: index + 1,
+          }
+        }),
       }
     } catch (error) {
       logger.error({ error, prompt }, 'Failed to generate quiz')

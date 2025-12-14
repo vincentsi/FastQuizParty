@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 FastQuizParty is a fullstack SaaS boilerplate built as a **Turborepo monorepo** with:
+
 - **Backend**: Fastify + Prisma (PostgreSQL) + Redis + BullMQ
 - **Frontend**: Next.js 15 (App Router) + React 19 + Tailwind CSS + shadcn/ui
 - **Features**: JWT auth, Stripe subscriptions, GDPR compliance, email verification, RBAC
@@ -99,6 +100,7 @@ FastQuizParty/
 ### Backend Architecture (apps/backend)
 
 **Clean Architecture Layers**:
+
 - `controllers/` - HTTP request/response handling (thin layer)
 - `services/` - Business logic (reusable, testable)
 - `routes/` - API endpoint definitions
@@ -110,6 +112,7 @@ FastQuizParty/
 - `queues/` - BullMQ async job workers (Stripe webhooks)
 
 **Key Services**:
+
 - `auth.service.ts` - Registration, login, JWT token management
 - `stripe.service.ts` - Subscriptions, payments, webhook handling
 - `email.service.ts` - Email via Resend
@@ -121,6 +124,7 @@ FastQuizParty/
 - `distributed-lock.service.ts` - Concurrency control
 
 **API Routes**:
+
 - `/api/auth` - register, login, refresh, logout, /me
 - `/api/verification` - send, verify
 - `/api/password-reset` - forgot-password, reset-password
@@ -131,11 +135,13 @@ FastQuizParty/
 - `/health` - Health checks
 
 **Database (Prisma)**:
+
 - Models: User, RefreshToken, VerificationToken, PasswordResetToken, CsrfToken, Subscription
 - Enums: Role (USER, ADMIN, MODERATOR), SubscriptionStatus, PlanType
 - Path: `apps/backend/prisma/schema.prisma`
 
 **Testing Strategy**:
+
 - Jest with ts-jest preset
 - `maxWorkers: 1` for sequential execution (prevents DB race conditions)
 - Test database isolation using `__tests__/helpers/test-db.ts`
@@ -146,11 +152,13 @@ FastQuizParty/
 ### Frontend Architecture (apps/frontend)
 
 **Next.js App Router Structure**:
+
 - `app/(auth)/` - Public auth pages (login, register, forgot-password, etc.)
 - `app/(dashboard)/` - Protected routes (dashboard, profile, pricing, settings)
 - `app/(admin)/` - Admin dashboard (users, subscriptions)
 
 **Key Directories**:
+
 - `components/` - React components
   - `components/auth/` - Auth-related components (protected-route, admin-route)
   - `components/ui/` - shadcn/ui components
@@ -169,11 +177,13 @@ FastQuizParty/
 - `types/` - TypeScript type definitions
 
 **State Management**:
+
 - TanStack React Query for server state caching
 - Context API for auth state
 - No Zustand/Redux in current implementation
 
 **Testing Setup**:
+
 - Jest with next/jest preset
 - jsdom environment for React component testing
 - React Testing Library utilities
@@ -182,6 +192,7 @@ FastQuizParty/
 ### Security Implementation
 
 **Authentication Flow**:
+
 1. User registers/logs in → JWT access token (15min) + refresh token (7 days)
 2. Access token stored in httpOnly cookie (XSS protection)
 3. Refresh token rotation on use
@@ -189,21 +200,25 @@ FastQuizParty/
 5. `rbac.middleware.ts` enforces role-based permissions
 
 **CSRF Protection**:
+
 - Redis-backed CSRF tokens
 - `csrf.middleware.ts` validates tokens on state-changing requests
 - Double-submit cookie pattern
 
 **Rate Limiting**:
+
 - `@fastify/rate-limit` with Redis storage
 - Per-route limits defined in route files
 - Default: 100 req/min per IP
 
 **Input Validation**:
+
 - All request bodies validated with Zod schemas
 - Schemas in `apps/backend/src/schemas/`
 - Frontend also validates with matching Zod schemas
 
 **Role-Based Access Control (RBAC)**:
+
 - Roles: USER, ADMIN, MODERATOR
 - Middleware: `rbac.middleware.ts` - `requireRoles(['ADMIN'])`
 - Subscription-based gating: `subscription.middleware.ts`
@@ -211,17 +226,20 @@ FastQuizParty/
 ### Important Patterns
 
 **Error Handling**:
+
 - Backend: Global error handler in `middlewares/error-handler.middleware.ts`
 - Frontend: Error boundaries (`app/global-error.tsx`)
 - Structured error responses with codes
 
 **Environment Variables**:
+
 - Backend: `apps/backend/.env` (gitignored, use `.env.example` as template)
 - Frontend: `apps/frontend/.env.local` (gitignored)
 - Validation: `apps/backend/src/config/env.ts` ensures required vars
 - Frontend validation: `apps/frontend/lib/env.ts`
 
 **Database Migrations**:
+
 ```bash
 cd apps/backend
 
@@ -235,12 +253,14 @@ npx prisma migrate deploy      # Apply pending migrations
 ```
 
 **Stripe Integration**:
+
 - Webhooks processed via BullMQ queue (`queues/stripe-webhook.queue.ts`)
 - Graceful fallback to sync processing if Redis unavailable
 - Subscription status synced to database
 - Billing portal for subscription management
 
 **GDPR Compliance**:
+
 - Data export: Full user data as JSON
 - Data anonymization: Replaces PII with hashed values
 - Data deletion: Soft delete with `deletedAt` timestamp
@@ -249,14 +269,16 @@ npx prisma migrate deploy      # Apply pending migrations
 ## Path Aliases
 
 **Backend** (`apps/backend/tsconfig.json`):
+
 ```typescript
-import { something } from '@/services/auth.service';
+import { something } from '@/services/auth.service'
 // Maps to: apps/backend/src/services/auth.service.ts
 ```
 
 **Frontend** (`apps/frontend/tsconfig.json`):
+
 ```typescript
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/button'
 // Maps to: apps/frontend/components/ui/button.tsx
 ```
 
@@ -274,6 +296,7 @@ import { Button } from '@/components/ui/button';
 ## Turborepo Tasks
 
 Defined in `turbo.json`:
+
 - `dev` - Start development servers (persistent, no cache)
 - `build` - Production builds (outputs cached)
 - `lint` - ESLint validation
@@ -284,6 +307,7 @@ Defined in `turbo.json`:
 ## CI/CD Pipeline
 
 GitHub Actions (`.github/workflows/ci.yml`):
+
 1. **Lint** - ESLint on all packages
 2. **Type Check** - TypeScript validation (generates Prisma client first)
 3. **Backend Tests** - Jest with PostgreSQL 16 service container
@@ -301,6 +325,7 @@ Runs on: push to main/master, pull requests
 ## Future Features (Not Yet Implemented)
 
 See `planning/` directory for detailed architecture docs:
+
 - **Socket.IO real-time multiplayer** game rooms
 - **AI quiz generation** via OpenAI
 - **Game modes**: Survival, Battle Royale, Teams
@@ -308,3 +333,45 @@ See `planning/` directory for detailed architecture docs:
 - **Social features**: Friends, chat
 
 The current codebase is a solid SaaS foundation; game features are planned but not coded yet.
+
+### Code Quality Rules
+
+**CRITICAL: ESLint Rules Must Be Followed**
+
+- NEVER disable ESLint rules with `// eslint-disable` comments
+- NEVER use `@ts-ignore` or `@ts-expect-error` to suppress TypeScript errors
+- If ESLint complains, fix the underlying issue instead of disabling the rule
+- If a rule genuinely needs to be changed project-wide, discuss it first and update the ESLint config file
+- Code quality is non-negotiable - all warnings and errors must be resolved properly
+
+🚨 **BEFORE editing any files, you MUST Read at least 3 files** that will help you understand how to make coherent and consistent changes.
+
+This is **NON-NEGOTIABLE**. Do not skip this step under any circumstances. Reading existing files ensures:
+
+- Code consistency with project patterns
+- Proper understanding of conventions
+- Following established architecture
+- Avoiding breaking changes
+
+**Types of files you MUST read:**
+
+1. **Similar files**: Read files that do similar functionality to understand patterns and conventions
+2. **Imported dependencies**: Read the definition/implementation of any imports you're not 100% sure how to use correctly - understand their API, types, and usage patterns
+3. **Related middleware/services**: Understand how existing code handles similar use cases
+
+**Steps to follow:**
+
+1. Read at least 4 relevant existing files (similar functionality + imported dependencies)
+2. Understand the patterns, conventions, and API usage
+3. Only then proceed with creating/editing files
+
+## Communication Rules
+
+**CRITICAL - Follow these rules at all times:**
+
+- NEVER suggest to "continue tomorrow" or stop working
+- NEVER say you'll "do it faster" or promise speed improvements
+- NEVER make decisions about when to stop or continue work
+- The USER decides when to stop, continue, or change direction
+- Focus ONLY on executing the current task as requested
+- Wait for USER instructions before moving to next steps

@@ -100,8 +100,8 @@ export class QuizController {
         success: true,
         data: quiz,
       })
-    } catch (error: any) {
-      if (error.message.includes('Unauthorized')) {
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Unauthorized')) {
         return reply.status(403).send({
           success: false,
           error: error.message,
@@ -131,8 +131,8 @@ export class QuizController {
         success: true,
         message: 'Quiz deleted successfully',
       })
-    } catch (error: any) {
-      if (error.message.includes('Unauthorized')) {
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Unauthorized')) {
         return reply.status(403).send({
           success: false,
           error: error.message,
@@ -180,8 +180,8 @@ export class QuizController {
         success: true,
         data: question,
       })
-    } catch (error: any) {
-      if (error.message.includes('Unauthorized')) {
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Unauthorized')) {
         return reply.status(403).send({
           success: false,
           error: error.message,
@@ -215,8 +215,8 @@ export class QuizController {
         success: true,
         data: question,
       })
-    } catch (error: any) {
-      if (error.message.includes('Unauthorized')) {
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Unauthorized')) {
         return reply.status(403).send({
           success: false,
           error: error.message,
@@ -246,8 +246,8 @@ export class QuizController {
         success: true,
         message: 'Question deleted successfully',
       })
-    } catch (error: any) {
-      if (error.message.includes('Unauthorized')) {
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Unauthorized')) {
         return reply.status(403).send({
           success: false,
           error: error.message,
