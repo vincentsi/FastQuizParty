@@ -4,6 +4,7 @@ import "./globals.css";
 import { QueryProvider } from "@/providers/query.provider";
 import { AuthProvider } from "@/providers/auth.provider";
 import { ThemeProvider } from "@/providers/theme.provider";
+import { SocketProvider } from "@/lib/socket/socket-context";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { OfflineIndicator } from "@/components/offline-indicator";
 import { Toaster } from "@/components/ui/sonner";
@@ -70,9 +71,11 @@ export default function RootLayout({
           >
             <QueryProvider>
               <AuthProvider>
-                {children}
-                <OfflineIndicator />
-                <Toaster />
+                <SocketProvider>
+                  {children}
+                  <OfflineIndicator />
+                  <Toaster />
+                </SocketProvider>
               </AuthProvider>
             </QueryProvider>
           </ThemeProvider>

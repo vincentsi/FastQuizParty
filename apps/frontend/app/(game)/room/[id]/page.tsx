@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useRoom } from '@/lib/hooks/useRoom'
 import { useSocket } from '@/lib/socket/socket-context'
 import { useAuth } from '@/providers/auth.provider'
@@ -9,13 +9,13 @@ import { RoomLobby } from '@/components/room'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 export default function RoomPage() {
-  const params = useParams()
   const router = useRouter()
-  const roomId = params.id as string
 
   const { user } = useAuth()
-  const { socket, isConnected, connect } = useSocket()
+  const { isConnected, connect } = useSocket()
   const { room, currentPlayer, toggleReady, startGame, leaveRoom, isLoading } = useRoom()
 
   // Connect socket on mount

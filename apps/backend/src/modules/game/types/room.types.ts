@@ -1,4 +1,4 @@
-import type { GameStatus, Difficulty } from '@prisma/client'
+import type { GameStatus } from '@prisma/client'
 
 export interface Player {
   id: string

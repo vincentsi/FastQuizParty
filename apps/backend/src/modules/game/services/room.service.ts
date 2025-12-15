@@ -6,8 +6,6 @@ import type {
   Room,
   Player,
   RoomCreateDto,
-  RoomJoinDto,
-  RoomSettings,
   RoomListItem,
 } from '../types/room.types'
 import crypto from 'crypto'
@@ -340,7 +338,7 @@ export class RoomService {
         })
 
         const host = Array.from(Object.values(room.players || {})).find(
-          (p: any) => p.isHost
+          (p): p is Player => (p as Player).isHost
         )
 
         rooms.push({

@@ -8,6 +8,8 @@ import { useAuth } from '@/providers/auth.provider'
 import { RefreshCw } from 'lucide-react'
 import { useRoom } from '@/lib/hooks/useRoom'
 
+export const dynamic = 'force-dynamic'
+
 export default function RoomsPage() {
   const { user } = useAuth()
   const { isConnected, connect } = useSocket()

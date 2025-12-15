@@ -4,12 +4,9 @@ import { validateSocketEvent } from '@/modules/realtime/middleware/validation.mi
 import {
   RoomCreateSchema,
   RoomJoinSchema,
-  RoomLeaveSchema,
-  RoomStartSchema,
-  RoomReadySchema,
 } from '../schemas/room.schema'
 import { logger } from '@/utils/logger'
-import type { Room, Player } from '../types/room.types'
+import type { Room } from '../types/room.types'
 
 /**
  * Room Event Handlers
