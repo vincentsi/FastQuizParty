@@ -7,6 +7,7 @@ import {
 } from '../schemas/room.schema'
 import { logger } from '@/utils/logger'
 import type { Room } from '../types/room.types'
+import { startGameFlow } from './game.handler'
 
 /**
  * Room Event Handlers
@@ -253,6 +254,11 @@ export function registerRoomHandlers(io: Server, socket: Socket) {
       if (!room.isPrivate) {
         io.emit('room:list:updated')
       }
+
+      // Démarrer le game flow (countdown + questions)
+      startGameFlow(io, roomId).catch((error) => {
+        logger.error({ error, roomId }, 'Game flow failed to start')
+      })
     } catch (error) {
       logger.error({ error, socketId: socket.id }, 'Game start failed')
 

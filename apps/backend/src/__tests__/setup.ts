@@ -7,7 +7,7 @@
 
 // Set test environment variables
 process.env.NODE_ENV = 'test'
-process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:0771@localhost:5432/boilerplate_test'
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:0771@localhost:5432/fastquizparty_test'
 process.env.JWT_SECRET = 'test-jwt-secret-min-32-chars-required-for-testing-purposes'
 process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-min-32-chars-required-for-testing'
 process.env.PORT = '3002'

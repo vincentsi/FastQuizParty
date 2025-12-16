@@ -6,6 +6,7 @@ import { logger } from '@/utils/logger'
 import { socketOptionalAuthMiddleware } from '@/modules/realtime/middleware/auth.middleware'
 import { createSocketRateLimitMiddleware } from '@/modules/realtime/middleware/rate-limit.middleware'
 import { registerRoomHandlers } from '@/modules/game/handlers/room.handler'
+import { registerGameHandlers } from '@/modules/game/handlers/game.handler'
 
 export async function setupSocketIO(httpServer: HTTPServer) {
   const io = new SocketIOServer(httpServer, {
@@ -71,6 +72,7 @@ export async function setupSocketIO(httpServer: HTTPServer) {
 
     // Register event handlers
     registerRoomHandlers(io, socket)
+    registerGameHandlers(io, socket)
 
     socket.on('disconnect', (reason) => {
       connectionCount--

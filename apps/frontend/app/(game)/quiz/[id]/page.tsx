@@ -1,20 +1,37 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
-import { quizApi } from '@/lib/api/quiz'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, Play, Clock, TrendingUp, Users } from 'lucide-react'
-import Link from 'next/link'
 import { CreateRoomDialog } from '@/components/room'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { quizApi } from '@/lib/api/quiz'
+import { useQuery } from '@tanstack/react-query'
+import {
+  ArrowLeft,
+  Clock,
+  Play,
+  Sparkles,
+  TrendingUp,
+  Users,
+} from 'lucide-react'
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
 
 export default function QuizDetailPage() {
   const params = useParams()
   const quizId = params.id as string
 
-  const { data: quiz, isLoading, error } = useQuery({
+  const {
+    data: quiz,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['quiz', quizId],
     queryFn: () => quizApi.getQuiz(quizId),
   })
@@ -57,146 +74,167 @@ export default function QuizDetailPage() {
   }
 
   const questionCount = quiz.questions?.length || 0
-  const totalTime = quiz.questions?.reduce((acc, q) => acc + q.timeLimit, 0) || 0
+  const totalTime =
+    quiz.questions?.reduce((acc, q) => acc + q.timeLimit, 0) || 0
 
   return (
-    <div className="container mx-auto py-8">
-      {/* Back Button */}
-      <Button asChild variant="ghost" className="mb-6">
-        <Link href="/quizzes">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Quizzes
-        </Link>
-      </Button>
+    <div className="space-y-8">
+      <div className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 p-8 text-white shadow-xl">
+        <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_10%_20%,rgba(99,102,241,0.35),transparent_35%),radial-gradient(circle_at_90%_10%,rgba(236,72,153,0.35),transparent_30%)]" />
+        <div className="relative flex flex-col gap-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge className="bg-white/10 text-white" variant="secondary">
+              {quiz.category?.name || 'Quiz'}
+            </Badge>
+            <Badge
+              className={difficultyColors[quiz.difficulty]}
+              variant="secondary"
+            >
+              {quiz.difficulty}
+            </Badge>
+            {quiz.isPremium && (
+              <Badge
+                variant="default"
+                className="bg-gradient-to-r from-purple-500 to-pink-500"
+              >
+                Premium
+              </Badge>
+            )}
+            {quiz.isAiGenerated && (
+              <Badge variant="outline" className="border-white/30 text-white">
+                AI Generated
+              </Badge>
+            )}
+          </div>
 
-      {/* Quiz Header */}
-      <div className="mb-8">
-        <div className="flex items-start gap-4">
-          {quiz.category?.icon && (
-            <div className="text-6xl">{quiz.category.icon}</div>
-          )}
-          <div className="flex-1">
-            <h1 className="text-4xl font-bold">{quiz.title}</h1>
+          <div className="flex flex-col gap-3">
+            <h1 className="text-4xl font-semibold leading-tight sm:text-5xl">
+              {quiz.title}
+            </h1>
             {quiz.description && (
-              <p className="mt-2 text-lg text-muted-foreground">
+              <p className="max-w-3xl text-base text-white/80">
                 {quiz.description}
               </p>
             )}
+          </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Badge variant="secondary" className={difficultyColors[quiz.difficulty]}>
-                {quiz.difficulty}
-              </Badge>
+          <div className="flex flex-wrap gap-3">
+            {quiz.tags?.map(tag => (
+              <span
+                key={tag}
+                className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-xs font-medium text-white/80"
+              >
+                #{tag}
+              </span>
+            ))}
+          </div>
 
-              {quiz.isPremium && (
-                <Badge variant="default" className="bg-gradient-to-r from-purple-500 to-pink-500">
-                  Premium
-                </Badge>
-              )}
-
-              {quiz.isAiGenerated && (
-                <Badge variant="outline">AI Generated</Badge>
-              )}
-
-              {quiz.category && (
-                <Badge variant="outline">{quiz.category.name}</Badge>
-              )}
-            </div>
-
-            {quiz.tags && quiz.tags.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1">
-                {quiz.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground"
-                  >
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            )}
+          <div className="flex flex-wrap gap-3">
+            <CreateRoomDialog
+              quizId={quiz.id}
+              trigger={
+                <Button
+                  size="lg"
+                  variant="secondary"
+                  className="text-slate-900"
+                >
+                  <Users className="mr-2 h-5 w-5" />
+                  Create Room
+                </Button>
+              }
+            />
+            <Button
+              size="lg"
+              variant="outline"
+              asChild
+              className="border-white/30 bg-transparent text-white hover:bg-white/20 hover:text-white"
+            >
+              <Link href={`/play/${quiz.id}`}>
+                <Play className="mr-2 h-5 w-5" />
+                Solo Play
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="ghost"
+              className="text-white hover:bg-white/10"
+            >
+              <Link href="/quizzes">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Quizzes
+              </Link>
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Quiz Stats */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
-        <Card>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card className="shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Questions</CardTitle>
+            <CardDescription>Total number of questions</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{questionCount}</div>
+            <div className="text-3xl font-bold">{questionCount}</div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Est. Time</CardTitle>
+            <CardDescription>Based on question timers</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-muted-foreground" />
-              <div className="text-2xl font-bold">
+              <div className="text-3xl font-bold">
                 {Math.ceil(totalTime / 60)} min
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Plays</CardTitle>
+            <CardDescription>How many times it was played</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-muted-foreground" />
-              <div className="text-2xl font-bold">{quiz.playCount}</div>
+              <div className="text-3xl font-bold">{quiz.playCount}</div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Action Buttons */}
-      <div className="mb-8 flex flex-wrap gap-3">
-        <CreateRoomDialog
-          quizId={quiz.id}
-          trigger={
-            <Button size="lg" variant="default">
-              <Users className="mr-2 h-5 w-5" />
-              Create Room
-            </Button>
-          }
-        />
-        <Button size="lg" variant="outline" asChild>
-          <Link href={`/play/${quiz.id}`}>
-            <Play className="mr-2 h-5 w-5" />
-            Solo Play
-          </Link>
-        </Button>
-      </div>
-
-      {/* Questions Preview */}
       {quiz.questions && quiz.questions.length > 0 && (
-        <div>
-          <h2 className="mb-4 text-2xl font-bold">Questions Preview</h2>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <h2 className="text-xl font-semibold">Questions Preview</h2>
+          </div>
           <div className="space-y-4">
             {quiz.questions.map((question, index) => (
-              <Card key={question.id}>
+              <Card key={question.id} className="shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-base">
                     {index + 1}. {question.text}
                   </CardTitle>
                   <CardDescription>
-                    <div className="flex items-center gap-4 text-sm">
-                      <span className={`rounded-full px-2 py-0.5 ${difficultyColors[question.difficulty]}`}>
+                    <div className="flex flex-wrap items-center gap-3 text-sm">
+                      <span
+                        className={`rounded-full px-2 py-0.5 ${difficultyColors[question.difficulty]}`}
+                      >
                         {question.difficulty}
                       </span>
-                      <span className="flex items-center gap-1">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
                         <Clock className="h-3 w-3" />
                         {question.timeLimit}s
                       </span>
-                      <span>{question.points} pts</span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
+                        {question.points} pts
+                      </span>
                     </div>
                   </CardDescription>
                 </CardHeader>

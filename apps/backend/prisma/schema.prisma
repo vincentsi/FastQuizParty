@@ -42,8 +42,8 @@ model User {
   stats UserStats?
 
   // Premium
-  premiumUntil  DateTime?
-  aiQuota       Int      @default(0)
+  premiumUntil   DateTime?
+  aiQuota        Int       @default(0)
   aiQuotaResetAt DateTime?
 
   createdAt          DateTime             @default(now())
@@ -186,9 +186,9 @@ enum PlanType {
 // ==========================================
 
 model Category {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  slug        String   @unique
+  id          String  @id @default(cuid())
+  name        String  @unique
+  slug        String  @unique
   description String?
   icon        String?
   color       String?
@@ -203,9 +203,9 @@ model Category {
 }
 
 model Quiz {
-  id          String     @id @default(cuid())
+  id          String  @id @default(cuid())
   title       String
-  description String?    @db.Text
+  description String? @db.Text
   thumbnail   String?
 
   // Ownership
@@ -234,9 +234,9 @@ model Quiz {
   games     Game[]
 
   // Stats
-  playCount    Int   @default(0)
+  playCount    Int    @default(0)
   avgRating    Float?
-  totalRatings Int   @default(0)
+  totalRatings Int    @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -252,13 +252,13 @@ model Quiz {
 }
 
 model Question {
-  id         String @id @default(cuid())
-  quizId     String
-  quiz       Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  quizId String
+  quiz   Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
 
   // Content
-  text          String     @db.Text
-  explanation   String?    @db.Text
+  text          String  @db.Text
+  explanation   String? @db.Text
   options       Json
   correctAnswer Int
 
@@ -360,10 +360,10 @@ model GamePlayer {
   avatar   String?
 
   // Stats
-  score           Int   @default(0)
+  score           Int    @default(0)
   rank            Int?
-  correctAnswers  Int   @default(0)
-  totalAnswers    Int   @default(0)
+  correctAnswers  Int    @default(0)
+  totalAnswers    Int    @default(0)
   avgResponseTime Float?
 
   // Answers
