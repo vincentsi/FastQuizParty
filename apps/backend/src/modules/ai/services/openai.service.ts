@@ -1,9 +1,11 @@
 import OpenAI from 'openai'
 import { logger } from '@/utils/logger'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    })
+  : null
 
 export class OpenAIService {
   /**
@@ -35,6 +37,10 @@ Génère un quiz complet avec ${count} questions. Chaque question doit avoir:
 Réponds uniquement en JSON valide.`
 
     try {
+      if (!openai) {
+        throw new Error('OpenAI API key not configured')
+      }
+
       const completion = await openai.chat.completions.create({
         model: 'gpt-4-turbo-preview',
         messages: [
@@ -108,6 +114,10 @@ Réponds en JSON avec:
 - explanation: explication de la bonne réponse`
 
     try {
+      if (!openai) {
+        throw new Error('OpenAI API key not configured')
+      }
+
       const completion = await openai.chat.completions.create({
         model: 'gpt-4-turbo-preview',
         messages: [{ role: 'user', content: prompt }],
