@@ -17,6 +17,7 @@ import { stripeRoutes } from '@/routes/stripe.route'
 import { premiumRoutes } from '@/routes/premium.route'
 import { gdprRoutes } from '@/routes/gdpr.route'
 import { quizRoutes } from '@/modules/quiz/routes/quiz.route'
+import { aiRoutes } from '@/modules/ai/routes/ai.routes'
 
 /**
  * Create and configure Fastify application
@@ -79,6 +80,7 @@ export async function createApp(): Promise<FastifyInstance> {
         { name: 'stripe', description: 'Stripe subscription endpoints' },
         { name: 'premium', description: 'Premium feature endpoints (requires subscription)' },
         { name: 'quiz', description: 'Quiz and question management endpoints' },
+        { name: 'ai', description: 'AI-powered quiz generation endpoints (Premium only)' },
       ],
       components: {
         securitySchemes: {
@@ -142,6 +144,7 @@ export async function createApp(): Promise<FastifyInstance> {
   await app.register(stripeRoutes, { prefix: '/api/stripe' })
   await app.register(premiumRoutes, { prefix: '/api/premium' })
   await app.register(quizRoutes, { prefix: '/api' })
+  await app.register(aiRoutes, { prefix: '/api/ai' })
 
   return app
 }

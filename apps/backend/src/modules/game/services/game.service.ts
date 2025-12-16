@@ -262,11 +262,12 @@ export class GameService {
   /**
    * Obtenir le leaderboard
    */
-  getLeaderboard(gameState: GameState): Array<{ playerId: string; score: number; rank: number }> {
+  getLeaderboard(gameState: GameState): Array<{ playerId: string; username: string; score: number; rank: number }> {
     const scores = Array.from(gameState.scores.entries())
       .sort((a, b) => b[1] - a[1])
       .map(([playerId, score], index) => ({
         playerId,
+        username: gameState.playerUsernames.get(playerId) || 'Unknown',
         score,
         rank: index + 1,
       }))

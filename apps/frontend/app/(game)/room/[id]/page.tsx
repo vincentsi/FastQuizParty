@@ -43,7 +43,7 @@ export default function RoomPage() {
     const success = await startGame()
     if (success) {
       // Navigate to game page when game starts
-      router.push(`/play/${room?.quizId}`)
+      router.push(`/room/${room?.id}/game`)
     }
   }
 
