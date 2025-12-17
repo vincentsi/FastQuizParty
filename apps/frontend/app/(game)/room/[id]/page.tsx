@@ -18,20 +18,18 @@ export default function RoomPage() {
   const { isConnected, connect } = useSocket()
   const { room, currentPlayer, toggleReady, startGame, leaveRoom, isLoading } = useRoom()
 
-  // Connect socket on mount
+  // Connect socket on mount (allow guest with empty token)
   useEffect(() => {
-    if (user && !isConnected) {
-      // Get access token from cookies or auth context
-      const token = document.cookie
-        .split('; ')
-        .find((row) => row.startsWith('accessToken='))
-        ?.split('=')[1]
+    if (!isConnected) {
+      const token =
+        document.cookie
+          .split('; ')
+          .find((row) => row.startsWith('accessToken='))
+          ?.split('=')[1] || ''
 
-      if (token) {
-        connect(token)
-      }
+      connect(token)
     }
-  }, [user, isConnected, connect])
+  }, [isConnected, connect])
 
   // Handle ready toggle
   const handleReady = async () => {

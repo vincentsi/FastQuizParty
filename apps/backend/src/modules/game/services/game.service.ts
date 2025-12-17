@@ -1,9 +1,10 @@
+import { prisma } from '@/config/prisma'
 import { getRedis, isRedisAvailable } from '@/config/redis'
 import { logger } from '@/utils/logger'
-import { prisma } from '@/config/prisma'
+import type { Question } from '@prisma/client'
 import { GameStatus } from '@prisma/client'
 import type { Room } from '../types/room.types'
-import type { Question } from '@prisma/client'
+import { ScoringService } from './scoring.service'
 
 /**
  * GameService - Gestion du flow de jeu en temps réel
@@ -52,6 +53,7 @@ export interface SubmitAnswerResult {
 
 export class GameService {
   private readonly GAME_TTL = 7200 // 2 heures
+  private readonly scoringService = new ScoringService()
 
   /**
    * Démarrer une partie depuis une room
@@ -88,7 +90,7 @@ export class GameService {
     }
 
     // Initialiser les scores à 0 pour tous les joueurs
-    room.players.forEach((player) => {
+    room.players.forEach(player => {
       gameState.scores.set(player.id, 0)
       gameState.playerAnswers.set(player.id, [])
       gameState.playerUsernames.set(player.id, player.username)
@@ -157,7 +159,7 @@ export class GameService {
     // Vérifier si le joueur a déjà répondu
     const playerAnswers = gameState.playerAnswers.get(playerId) || []
     const alreadyAnswered = playerAnswers.some(
-      (a) => a.questionId === currentQuestion.id
+      a => a.questionId === currentQuestion.id
     )
 
     if (alreadyAnswered) {
@@ -170,13 +172,16 @@ export class GameService {
     // Calculer le temps de réponse
     const timeMs = timestamp - gameState.questionStartTime
 
-    // Calculer les points (délégué au ScoringService plus tard)
-    const points = this.calculatePoints(
+    // Calculer streak + points via ScoringService
+    const streak = this.scoringService.calculateStreak(playerAnswers)
+    const scoreCalc = this.scoringService.calculatePoints(
       timeMs,
       currentQuestion.timeLimit * 1000,
       currentQuestion.points,
-      isCorrect
+      isCorrect,
+      streak
     )
+    const points = scoreCalc.totalPoints
 
     // Enregistrer la réponse
     const playerAnswer: PlayerAnswer = {
@@ -254,7 +259,7 @@ export class GameService {
   private calculateRank(gameState: GameState, playerId: string): number {
     const scores = Array.from(gameState.scores.entries())
       .sort((a, b) => b[1] - a[1])
-      .map((entry) => entry[0])
+      .map(entry => entry[0])
 
     return scores.indexOf(playerId) + 1
   }
@@ -262,7 +267,14 @@ export class GameService {
   /**
    * Obtenir le leaderboard
    */
-  getLeaderboard(gameState: GameState): Array<{ playerId: string; username: string; score: number; rank: number }> {
+  getLeaderboard(
+    gameState: GameState
+  ): Array<{
+    playerId: string
+    username: string
+    score: number
+    rank: number
+  }> {
     const scores = Array.from(gameState.scores.entries())
       .sort((a, b) => b[1] - a[1])
       .map(([playerId, score], index) => ({
@@ -285,8 +297,16 @@ export class GameService {
     await this.saveGameState(gameState)
 
     // Sauvegarder en DB (async, pas besoin d'attendre)
-    this.saveGameToDatabase(gameState).catch((error) => {
-      logger.error({ error, roomId: gameState.roomId }, 'Failed to save game to database')
+    this.saveGameToDatabase(gameState).catch(error => {
+      logger.error(
+        { error, roomId: gameState.roomId },
+        'Failed to save game to database'
+      )
+    })
+
+    // Nettoyer le state en Redis une fois terminé
+    this.deleteGameState(gameState.roomId).catch((error) => {
+      logger.warn({ error, roomId: gameState.roomId }, 'Failed to delete game state from redis')
     })
 
     logger.info(
@@ -380,45 +400,49 @@ export class GameService {
         status: gameState.status,
         totalQuestions: gameState.questions.length,
         startedAt: new Date(gameState.startedAt),
-        finishedAt: gameState.finishedAt ? new Date(gameState.finishedAt) : null,
+        finishedAt: gameState.finishedAt
+          ? new Date(gameState.finishedAt)
+          : null,
       },
     })
 
     // Créer les GamePlayer records
-    const gamePlayerPromises = Array.from(gameState.scores.entries()).map(async ([playerId, score]) => {
-      const answers = gameState.playerAnswers.get(playerId) || []
-      const correctAnswers = answers.filter((a) => a.isCorrect).length
-      const totalAnswers = answers.length
-      const username = gameState.playerUsernames.get(playerId) || 'Unknown'
+    const gamePlayerPromises = Array.from(gameState.scores.entries()).map(
+      async ([playerId, score]) => {
+        const answers = gameState.playerAnswers.get(playerId) || []
+        const correctAnswers = answers.filter(a => a.isCorrect).length
+        const totalAnswers = answers.length
+        const username = gameState.playerUsernames.get(playerId) || 'Unknown'
 
-      const gamePlayer = await prisma.gamePlayer.create({
-        data: {
-          gameId: game.id,
-          userId: playerId.startsWith('guest-') ? null : playerId,
-          username,
-          score,
-          correctAnswers,
-          totalAnswers,
-          rank: this.calculateRank(gameState, playerId),
-        },
-      })
-
-      // Créer les PlayerAnswer records pour ce joueur
-      if (answers.length > 0) {
-        await prisma.playerAnswer.createMany({
-          data: answers.map((answer) => ({
-            gamePlayerId: gamePlayer.id,
-            questionId: answer.questionId,
-            answer: answer.answer,
-            isCorrect: answer.isCorrect,
-            responseTime: answer.timeMs,
-            points: answer.points,
-          })),
+        const gamePlayer = await prisma.gamePlayer.create({
+          data: {
+            gameId: game.id,
+            userId: playerId.startsWith('guest-') ? null : playerId,
+            username,
+            score,
+            correctAnswers,
+            totalAnswers,
+            rank: this.calculateRank(gameState, playerId),
+          },
         })
-      }
 
-      return gamePlayer
-    })
+        // Créer les PlayerAnswer records pour ce joueur
+        if (answers.length > 0) {
+          await prisma.playerAnswer.createMany({
+            data: answers.map(answer => ({
+              gamePlayerId: gamePlayer.id,
+              questionId: answer.questionId,
+              answer: answer.answer,
+              isCorrect: answer.isCorrect,
+              responseTime: answer.timeMs,
+              points: answer.points,
+            })),
+          })
+        }
+
+        return gamePlayer
+      }
+    )
 
     const gamePlayers = await Promise.all(gamePlayerPromises)
 
@@ -430,6 +454,55 @@ export class GameService {
       },
       'Game saved to database'
     )
+  }
+
+  /**
+   * Récupérer les résultats d'un game depuis la DB
+   */
+  async getGameResults(gameId: string): Promise<{
+    leaderboard: Array<{
+      playerId: string
+      username: string
+      score: number
+      rank: number
+    }>
+    duration: number
+  } | null> {
+    const game = await prisma.game.findUnique({
+      where: { id: gameId },
+      include: {
+        players: {
+          orderBy: { score: 'desc' },
+          select: {
+            id: true,
+            userId: true,
+            username: true,
+            score: true,
+            rank: true,
+          },
+        },
+      },
+    })
+
+    if (!game || game.status !== GameStatus.FINISHED) {
+      return null
+    }
+
+    const duration = game.finishedAt && game.startedAt
+      ? game.finishedAt.getTime() - game.startedAt.getTime()
+      : 0
+
+    const leaderboard = game.players.map((player, index) => ({
+      playerId: player.userId || player.id,
+      username: player.username,
+      score: player.score,
+      rank: player.rank ?? index + 1,
+    }))
+
+    return {
+      leaderboard,
+      duration,
+    }
   }
 }
 

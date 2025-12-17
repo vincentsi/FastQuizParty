@@ -116,7 +116,7 @@ export default function GamePage() {
       <ResultsPage
         leaderboard={gameState.leaderboard}
         myPlayerId={user?.id}
-        duration={0} // This should come from the game:finished event
+        duration={gameState.duration}
       />
     )
   }

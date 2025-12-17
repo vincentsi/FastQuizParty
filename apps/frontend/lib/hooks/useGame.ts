@@ -28,6 +28,7 @@ export function useGame() {
     countdown: null,
     timeRemaining: 0,
     canAnswer: true,
+    duration: 0,
   })
 
   const timerRef = useRef<NodeJS.Timeout | null>(null)
@@ -191,6 +192,7 @@ export function useGame() {
         ...prev,
         phase: 'FINISHED' as GamePhase,
         leaderboard: data.leaderboard,
+        duration: data.duration ?? prev.duration,
       }))
     })
 

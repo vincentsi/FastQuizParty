@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { PublicRoomsList, JoinRoomDialog } from '@/components/room'
 import { useSocket } from '@/lib/socket/socket-context'
 import { useAuth } from '@/providers/auth.provider'
+import { useRoom } from '@/lib/hooks/useRoom'
 import { RefreshCw } from 'lucide-react'
 import { useRoom } from '@/lib/hooks/useRoom'
 
@@ -15,19 +16,18 @@ export default function RoomsPage() {
   const { isConnected, connect } = useSocket()
   const { fetchPublicRooms } = useRoom()
 
-  // Connect socket on mount
+  // Connect socket on mount (guest-friendly)
   useEffect(() => {
-    if (user && !isConnected) {
-      const token = document.cookie
-        .split('; ')
-        .find((row) => row.startsWith('accessToken='))
-        ?.split('=')[1]
+    if (!isConnected) {
+      const token =
+        document.cookie
+          .split('; ')
+          .find((row) => row.startsWith('accessToken='))
+          ?.split('=')[1] || ''
 
-      if (token) {
-        connect(token)
-      }
+      connect(token)
     }
-  }, [user, isConnected, connect])
+  }, [isConnected, connect])
 
   const handleRefresh = () => {
     fetchPublicRooms()

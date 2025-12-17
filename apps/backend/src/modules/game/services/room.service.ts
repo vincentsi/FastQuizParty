@@ -21,6 +21,13 @@ export class RoomService {
   private readonly CODE_LENGTH = 6
 
   /**
+   * Hash room password (SHA-256)
+   */
+  private hashPassword(password: string): string {
+    return crypto.createHash('sha256').update(password).digest('hex')
+  }
+
+  /**
    * Génère un code unique de 6 chiffres pour une room
    */
   private async generateUniqueCode(): Promise<string> {
@@ -78,7 +85,7 @@ export class RoomService {
       maxPlayers: dto.maxPlayers || 10,
       questionTime: dto.questionTime || 15,
       isPrivate: dto.isPrivate || false,
-      password: dto.password,
+      password: dto.password ? this.hashPassword(dto.password) : undefined,
       status: GameStatus.WAITING,
       players: new Map([[host.id, host]]),
       createdAt: Date.now(),
@@ -117,8 +124,11 @@ export class RoomService {
       throw new Error('Room is full')
     }
 
-    if (room.isPrivate && room.password !== password) {
-      throw new Error('Invalid password')
+    if (room.isPrivate) {
+      const hashed = password ? this.hashPassword(password) : ''
+      if (!password || room.password !== hashed) {
+        throw new Error('Invalid password')
+      }
     }
 
     // Créer le joueur

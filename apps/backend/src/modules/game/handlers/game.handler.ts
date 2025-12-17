@@ -1,8 +1,8 @@
-import type { Server, Socket } from 'socket.io'
-import { gameService } from '../services/game.service'
-import { antiCheatService } from '../services/anti-cheat.service'
-import { roomService } from '../services/room.service'
 import { logger } from '@/utils/logger'
+import type { Server, Socket } from 'socket.io'
+import { antiCheatService } from '../services/anti-cheat.service'
+import { gameService } from '../services/game.service'
+import { roomService } from '../services/room.service'
 
 /**
  * Game Event Handlers
@@ -101,8 +101,14 @@ export function registerGameHandlers(io: Server, socket: Socket) {
         },
       })
 
+      // Recharger le gameState pour avoir les données à jour
+      const updatedGameState = await gameService.getGameState(roomId)
+      if (!updatedGameState) {
+        return
+      }
+
       // Broadcast update du scoreboard
-      const leaderboard = gameService.getLeaderboard(gameState)
+      const leaderboard = gameService.getLeaderboard(updatedGameState)
       io.to(roomId).emit('game:scoreboard:update', {
         leaderboard,
       })
@@ -110,31 +116,35 @@ export function registerGameHandlers(io: Server, socket: Socket) {
       // Vérifier si tous les joueurs ont répondu
       const room = await roomService.getRoom(roomId)
       if (room) {
-        const allAnswered = Array.from(gameState.playerAnswers.values()).every(
-          (answers) => answers.length === gameState.currentQuestionIndex + 1
+        const allAnswered = Array.from(
+          updatedGameState.playerAnswers.values()
+        ).every(
+          answers =>
+            answers.length === updatedGameState.currentQuestionIndex + 1
         )
 
         // Si tous ont répondu, avancer à la question suivante après 2s
         if (allAnswered) {
           setTimeout(async () => {
-            await advanceToNextQuestion(io, roomId, gameState)
+            await advanceToNextQuestion(io, roomId)
           }, 2000)
         }
       }
 
       // Anti-cheat: Détecter les patterns suspects
-      if (antiCheatResult.isSuspicious) {
-        const playerAnswers = gameState.playerAnswers.get(playerId) || []
+      if (antiCheatResult.isSuspicious && updatedGameState) {
+        const playerAnswers = updatedGameState.playerAnswers.get(playerId) || []
         const pattern = {
           playerId,
-          answers: playerAnswers.map((a) => ({
+          answers: playerAnswers.map(a => ({
             timeMs: a.timeMs,
             isCorrect: a.isCorrect,
             timestamp: a.timestamp,
           })),
         }
 
-        const suspicionResult = antiCheatService.detectSuspiciousPattern(pattern)
+        const suspicionResult =
+          antiCheatService.detectSuspiciousPattern(pattern)
         if (suspicionResult.isSuspicious) {
           antiCheatService.logSuspiciousPlayer(pattern, suspicionResult)
         }
@@ -144,7 +154,8 @@ export function registerGameHandlers(io: Server, socket: Socket) {
 
       callback?.({
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to submit answer',
+        error:
+          error instanceof Error ? error.message : 'Failed to submit answer',
       })
     }
   })
@@ -155,23 +166,45 @@ export function registerGameHandlers(io: Server, socket: Socket) {
  */
 async function advanceToNextQuestion(
   io: Server,
-  roomId: string,
-  gameState: ReturnType<typeof gameService.getGameState> extends Promise<infer T> ? NonNullable<T> : never
+  roomId: string
 ): Promise<void> {
+  // Recharger le gameState depuis Redis
+  const gameState = await gameService.getGameState(roomId)
+  if (!gameState) {
+    logger.error({ roomId }, 'Cannot advance: game state not found')
+    return
+  }
+
   const nextQuestion = await gameService.nextQuestion(gameState)
 
   if (!nextQuestion) {
-    // Partie terminée
+    // Partie terminée - recharger le state final
     await gameService.endGame(gameState)
+    const finalGameState = await gameService.getGameState(roomId)
 
-    const leaderboard = gameService.getLeaderboard(gameState)
+    if (!finalGameState) {
+      logger.error({ roomId }, 'Cannot finish: game state not found')
+      return
+    }
+
+    const leaderboard = gameService.getLeaderboard(finalGameState)
 
     io.to(roomId).emit('game:finished', {
       leaderboard,
-      duration: gameState.finishedAt! - gameState.startedAt,
+      duration: finalGameState.finishedAt! - finalGameState.startedAt,
     })
 
     logger.info({ roomId }, 'Game finished, all questions answered')
+    return
+  }
+
+  // Recharger le gameState après nextQuestion pour avoir les données à jour
+  const updatedGameState = await gameService.getGameState(roomId)
+  if (!updatedGameState) {
+    logger.error(
+      { roomId },
+      'Cannot advance: game state not found after nextQuestion'
+    )
     return
   }
 
@@ -185,15 +218,18 @@ async function advanceToNextQuestion(
       points: nextQuestion.points,
       order: nextQuestion.order,
     },
-    questionNumber: gameState.currentQuestionIndex + 1,
-    totalQuestions: gameState.questions.length,
-    startTime: gameState.questionStartTime,
+    questionNumber: updatedGameState.currentQuestionIndex + 1,
+    totalQuestions: updatedGameState.questions.length,
+    startTime: updatedGameState.questionStartTime,
   })
 
   // Timer automatique pour la question
-  setTimeout(async () => {
-    await handleQuestionTimeout(io, roomId, gameState)
-  }, nextQuestion.timeLimit * 1000 + 500) // +500ms de buffer
+  setTimeout(
+    async () => {
+      await handleQuestionTimeout(io, roomId)
+    },
+    nextQuestion.timeLimit * 1000 + 500
+  ) // +500ms de buffer
 }
 
 /**
@@ -201,11 +237,20 @@ async function advanceToNextQuestion(
  */
 async function handleQuestionTimeout(
   io: Server,
-  roomId: string,
-  gameState: ReturnType<typeof gameService.getGameState> extends Promise<infer T> ? NonNullable<T> : never
+  roomId: string
 ): Promise<void> {
+  // Recharger le gameState depuis Redis
+  const gameState = await gameService.getGameState(roomId)
+  if (!gameState) {
+    logger.error({ roomId }, 'Cannot handle timeout: game state not found')
+    return
+  }
+
   const currentQuestion = gameService.getCurrentQuestion(gameState)
-  if (!currentQuestion) return
+  if (!currentQuestion) {
+    logger.warn({ roomId }, 'No current question on timeout')
+    return
+  }
 
   // Broadcast que le temps est écoulé
   io.to(roomId).emit('game:question:timeout', {
@@ -215,7 +260,7 @@ async function handleQuestionTimeout(
 
   // Attendre 3s pour montrer la réponse, puis next question
   setTimeout(async () => {
-    await advanceToNextQuestion(io, roomId, gameState)
+    await advanceToNextQuestion(io, roomId)
   }, 3000)
 }
 
@@ -235,13 +280,13 @@ export async function startGameFlow(io: Server, roomId: string): Promise<void> {
 
     // Countdown 3s
     io.to(roomId).emit('game:countdown', { seconds: 3 })
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    await new Promise(resolve => setTimeout(resolve, 1000))
 
     io.to(roomId).emit('game:countdown', { seconds: 2 })
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    await new Promise(resolve => setTimeout(resolve, 1000))
 
     io.to(roomId).emit('game:countdown', { seconds: 1 })
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    await new Promise(resolve => setTimeout(resolve, 1000))
 
     // Envoyer la première question
     const firstQuestion = gameService.getCurrentQuestion(gameState)
@@ -269,9 +314,12 @@ export async function startGameFlow(io: Server, roomId: string): Promise<void> {
     })
 
     // Timer pour la première question
-    setTimeout(async () => {
-      await handleQuestionTimeout(io, roomId, gameState)
-    }, firstQuestion.timeLimit * 1000 + 500)
+    setTimeout(
+      async () => {
+        await handleQuestionTimeout(io, roomId)
+      },
+      firstQuestion.timeLimit * 1000 + 500
+    )
 
     logger.info({ roomId, quizId: room.quizId }, 'Game flow started')
   } catch (error) {

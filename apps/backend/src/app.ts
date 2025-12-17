@@ -18,6 +18,7 @@ import { premiumRoutes } from '@/routes/premium.route'
 import { gdprRoutes } from '@/routes/gdpr.route'
 import { quizRoutes } from '@/modules/quiz/routes/quiz.route'
 import { aiRoutes } from '@/modules/ai/routes/ai.routes'
+import { gameRoutes } from '@/modules/game/routes/game.route'
 
 /**
  * Create and configure Fastify application
@@ -145,6 +146,7 @@ export async function createApp(): Promise<FastifyInstance> {
   await app.register(premiumRoutes, { prefix: '/api/premium' })
   await app.register(quizRoutes, { prefix: '/api' })
   await app.register(aiRoutes, { prefix: '/api/ai' })
+  await app.register(gameRoutes, { prefix: '/api' })
 
   return app
 }

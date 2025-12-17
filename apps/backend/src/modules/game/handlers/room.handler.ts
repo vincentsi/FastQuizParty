@@ -329,8 +329,9 @@ export function registerRoomHandlers(io: Server, socket: Socket) {
  * Serialize Room for client (convert Map to Array)
  */
 function serializeRoom(room: Room) {
+  const { password: _password, ...rest } = room
   return {
-    ...room,
+    ...rest,
     players: Array.from(room.players.values()),
   }
 }
