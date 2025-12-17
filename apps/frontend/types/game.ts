@@ -57,4 +57,5 @@ export interface GameState {
   countdown: number | null
   timeRemaining: number
   canAnswer: boolean
+  duration: number
 }

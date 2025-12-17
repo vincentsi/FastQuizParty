@@ -4,15 +4,12 @@ import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { PublicRoomsList, JoinRoomDialog } from '@/components/room'
 import { useSocket } from '@/lib/socket/socket-context'
-import { useAuth } from '@/providers/auth.provider'
 import { useRoom } from '@/lib/hooks/useRoom'
 import { RefreshCw } from 'lucide-react'
-import { useRoom } from '@/lib/hooks/useRoom'
 
 export const dynamic = 'force-dynamic'
 
 export default function RoomsPage() {
-  const { user } = useAuth()
   const { isConnected, connect } = useSocket()
   const { fetchPublicRooms } = useRoom()
 
