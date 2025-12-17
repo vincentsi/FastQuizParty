@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { aiController } from '../controllers/ai.controller'
-import { generateQuizSchema, improveQuestionSchema } from '../schemas/ai.schema'
+import type { GenerateQuizDto, ImproveQuestionDto } from '../schemas/ai.schema'
 import { authMiddleware } from '@/middlewares/auth.middleware'
 
 export async function aiRoutes(fastify: FastifyInstance) {
@@ -8,40 +8,18 @@ export async function aiRoutes(fastify: FastifyInstance) {
   fastify.addHook('onRequest', authMiddleware)
 
   // Generate quiz with AI
-  fastify.post(
+  fastify.post<{ Body: GenerateQuizDto }>(
     '/generate-quiz',
-    {
-      schema: {
-        body: generateQuizSchema,
-        response: {
-          201: {
-            type: 'object',
-            properties: {
-              quiz: { type: 'object' },
-            },
-          },
-        },
-      },
-    },
-    aiController.generateQuiz.bind(aiController)
+    async (request, reply) => {
+      return aiController.generateQuiz(request, reply)
+    }
   )
 
   // Improve question with AI
-  fastify.post(
+  fastify.post<{ Body: ImproveQuestionDto }>(
     '/improve-question',
-    {
-      schema: {
-        body: improveQuestionSchema,
-        response: {
-          200: {
-            type: 'object',
-            properties: {
-              question: { type: 'object' },
-            },
-          },
-        },
-      },
-    },
-    aiController.improveQuestion.bind(aiController)
+    async (request, reply) => {
+      return aiController.improveQuestion(request, reply)
+    }
   )
 }
