@@ -6,6 +6,17 @@ class SocketClient {
   private socket: Socket | null = null
   private accessToken: string | null = null
 
+  private getOrCreateGuestId(): string {
+    if (typeof window === 'undefined') return ''
+    
+    let guestId = localStorage.getItem('guestId')
+    if (!guestId) {
+      guestId = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+      localStorage.setItem('guestId', guestId)
+    }
+    return guestId
+  }
+
   connect(token: string): Socket {
     if (this.socket?.connected) {
       return this.socket
@@ -13,9 +24,15 @@ class SocketClient {
 
     this.accessToken = token
 
+    // Get or create guest ID for persistent identification
+    // Check for empty string OR undefined/null to properly identify guests
+    const isGuest = !token || token.trim() === ''
+    const guestId = isGuest ? this.getOrCreateGuestId() : undefined
+
     this.socket = io(SOCKET_URL, {
       auth: {
-        token,
+        token: token || undefined, // Send undefined instead of empty string for guests
+        guestId, // Send guestId for guests
       },
       transports: ['websocket', 'polling'],
       reconnection: true,

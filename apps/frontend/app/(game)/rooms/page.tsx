@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { PublicRoomsList, JoinRoomDialog } from '@/components/room'
+import { PublicRoomsList, JoinRoomDialog, CreateRoomDialog } from '@/components/room'
 import { useSocket } from '@/lib/socket/socket-context'
 import { useRoom } from '@/lib/hooks/useRoom'
 import { RefreshCw } from 'lucide-react'
@@ -10,12 +10,12 @@ import { RefreshCw } from 'lucide-react'
 export const dynamic = 'force-dynamic'
 
 export default function RoomsPage() {
-  const { isConnected, connect } = useSocket()
+  const { socket, isConnected, connect } = useSocket()
   const { fetchPublicRooms } = useRoom()
 
   // Connect socket on mount (guest-friendly)
   useEffect(() => {
-    if (!isConnected) {
+    if (!isConnected && !socket) {
       const token =
         document.cookie
           .split('; ')
@@ -24,7 +24,7 @@ export default function RoomsPage() {
 
       connect(token)
     }
-  }, [isConnected, connect])
+  }, [isConnected, socket, connect])
 
   const handleRefresh = () => {
     fetchPublicRooms()
@@ -44,6 +44,7 @@ export default function RoomsPage() {
           <Button variant="outline" size="icon" onClick={handleRefresh}>
             <RefreshCw className="h-4 w-4" />
           </Button>
+          <CreateRoomDialog />
           <JoinRoomDialog />
         </div>
       </div>

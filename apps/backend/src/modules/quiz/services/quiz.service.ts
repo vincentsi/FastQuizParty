@@ -24,9 +24,11 @@ export class QuizService {
 
     const where: Prisma.QuizWhereInput = {}
 
-    // Filters
+    // Base filters
     if (categoryId) where.categoryId = categoryId
     if (difficulty && difficulty !== 'MIXED') where.difficulty = difficulty
+
+    // Visibility filter
     if (isPublic !== undefined) {
       where.isPublic = isPublic
     } else if (!userId) {
@@ -34,17 +36,29 @@ export class QuizService {
       where.isPublic = true
     }
 
-    // Search
+    // Build AND conditions for complex queries
+    const andConditions: Prisma.QuizWhereInput[] = []
+
+    // Search condition
     if (search) {
-      where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-      ]
+      andConditions.push({
+        OR: [
+          { title: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+        ],
+      })
     }
 
-    // If authenticated, show public quizzes + user's own quizzes
+    // If authenticated and no explicit isPublic filter, show public quizzes + user's own quizzes
     if (userId && isPublic === undefined) {
-      where.OR = [{ isPublic: true }, { authorId: userId }]
+      andConditions.push({
+        OR: [{ isPublic: true }, { authorId: userId }],
+      })
+    }
+
+    // Apply AND conditions if any
+    if (andConditions.length > 0) {
+      where.AND = andConditions
     }
 
     // Build cache key from filters

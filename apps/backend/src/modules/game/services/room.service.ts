@@ -1,35 +1,23 @@
+import { prisma } from '@/config/prisma'
 import { getRedis, isRedisAvailable } from '@/config/redis'
 import { logger } from '@/utils/logger'
-import { prisma } from '@/config/prisma'
 import { GameStatus } from '@prisma/client'
+import crypto from 'crypto'
 import type {
-  Room,
   Player,
+  Room,
   RoomCreateDto,
   RoomListItem,
 } from '../types/room.types'
-import crypto from 'crypto'
 
-/**
- * RoomService - Gestion des salles de jeu en temps réel
- *
- * Utilise Redis pour le stockage des rooms actives (in-memory)
- * Les rooms sont temporaires et ont un TTL de 2h
- */
 export class RoomService {
-  private readonly ROOM_TTL = 7200 // 2 heures en secondes
+  private readonly ROOM_TTL = 7200
   private readonly CODE_LENGTH = 6
 
-  /**
-   * Hash room password (SHA-256)
-   */
   private hashPassword(password: string): string {
     return crypto.createHash('sha256').update(password).digest('hex')
   }
 
-  /**
-   * Génère un code unique de 6 chiffres pour une room
-   */
   private async generateUniqueCode(): Promise<string> {
     let code: string
     let attempts = 0
@@ -47,11 +35,14 @@ export class RoomService {
     return code
   }
 
-  /**
-   * Crée une nouvelle room
-   */
-  async createRoom(hostId: string, hostUsername: string, hostSocketId: string, dto: RoomCreateDto): Promise<Room> {
-    // Vérifier que le quiz existe
+  async createRoom(
+    hostId: string,
+    hostUsername: string,
+    hostSocketId: string,
+    dto: RoomCreateDto,
+    guestId?: string
+  ): Promise<Room> {
+    // Verify quiz exists
     const quiz = await prisma.quiz.findUnique({
       where: { id: dto.quizId },
       select: { id: true, title: true },
@@ -66,7 +57,8 @@ export class RoomService {
 
     const host: Player = {
       id: crypto.randomUUID(),
-      userId: hostId,
+      userId: hostId || undefined,
+      guestId: !hostId && guestId ? guestId : undefined,
       username: hostUsername,
       isHost: true,
       isReady: true,
@@ -77,11 +69,24 @@ export class RoomService {
       joinedAt: Date.now(),
     }
 
+    logger.info(
+      {
+        hostId: host.id,
+        userId: host.userId,
+        guestId: host.guestId,
+        username: host.username,
+        isHost: host.isHost,
+        roomId,
+        code,
+      },
+      'Created host player in createRoom'
+    )
+
     const room: Room = {
       id: roomId,
       code,
       quizId: dto.quizId,
-      hostId,
+      hostId: host.id, // Use player.id as hostId (consistent with room.hostId usage)
       maxPlayers: dto.maxPlayers || 10,
       questionTime: dto.questionTime || 15,
       isPrivate: dto.isPrivate || false,
@@ -91,7 +96,6 @@ export class RoomService {
       createdAt: Date.now(),
     }
 
-    // Sauvegarder dans Redis
     await this.saveRoom(room)
 
     logger.info({ roomId, code, hostId, quizId: dto.quizId }, 'Room created')
@@ -99,15 +103,13 @@ export class RoomService {
     return room
   }
 
-  /**
-   * Rejoindre une room existante
-   */
   async joinRoom(
     code: string,
     userId: string | undefined,
     username: string,
     socketId: string,
-    password?: string
+    password?: string,
+    guestId?: string
   ): Promise<{ room: Room; player: Player }> {
     const room = await this.getRoomByCode(code)
 
@@ -115,7 +117,7 @@ export class RoomService {
       throw new Error('Room not found')
     }
 
-    // Vérifications
+    // Validation checks
     if (room.status !== GameStatus.WAITING) {
       throw new Error('Game already started')
     }
@@ -131,36 +133,179 @@ export class RoomService {
       }
     }
 
-    // Créer le joueur
-    const player: Player = {
-      id: crypto.randomUUID(),
-      userId,
-      username,
-      isHost: false,
-      isReady: false,
-      isConnected: true,
-      score: 0,
-      correctAnswers: 0,
-      socketId,
-      joinedAt: Date.now(),
+    // Clean up old disconnected guest players with same guestId BEFORE matching
+    // This prevents duplicates when a guest refreshes before disconnect event is processed
+    let cleanedZombies = false
+    if (guestId) {
+      const playersToRemove: string[] = []
+      for (const [pid, p] of room.players.entries()) {
+        // Remove disconnected guests with same guestId (but different playerId)
+        if (!p.userId && p.guestId === guestId && !p.isConnected && p.socketId !== socketId) {
+          playersToRemove.push(pid)
+        }
+      }
+      for (const pid of playersToRemove) {
+        logger.info(
+          { playerId: pid, guestId, roomId: room.id },
+          'Removing old disconnected guest before rejoin'
+        )
+        room.players.delete(pid)
+        cleanedZombies = true
+      }
+      // Save room immediately if zombies were cleaned
+      if (cleanedZombies) {
+        await this.saveRoom(room)
+      }
     }
 
-    room.players.set(player.id, player)
+    // Check if player already exists (reuse on rejoin)
+    let player: Player | undefined
 
-    // Sauvegarder
+    logger.info(
+      {
+        roomId: room.id,
+        userId,
+        guestId,
+        socketId,
+        username,
+        existingPlayers: Array.from(room.players.values()).map(p => ({
+          id: p.id,
+          userId: p.userId,
+          guestId: p.guestId,
+          username: p.username,
+          isHost: p.isHost,
+          isConnected: p.isConnected,
+          socketId: p.socketId,
+        })),
+      },
+      'Attempting to find existing player in joinRoom'
+    )
+
+    if (userId) {
+      // For authenticated users, match by userId
+      for (const p of room.players.values()) {
+        if (p.userId === userId) {
+          player = p
+          logger.info(
+            { playerId: p.id, matchedBy: 'userId' },
+            'Found existing player by userId'
+          )
+          break
+        }
+      }
+    } else {
+      // For guests, match by guestId first (persistent across refreshes)
+      if (guestId) {
+        for (const p of room.players.values()) {
+          if (!p.userId && p.guestId === guestId) {
+            player = p
+            logger.info(
+              {
+                playerId: p.id,
+                guestId,
+                matchedBy: 'guestId',
+                wasHost: p.isHost,
+              },
+              'Found existing player by guestId'
+            )
+            break
+          }
+        }
+      }
+      // If not found by guestId, match by socketId (same connection)
+      if (!player) {
+        for (const p of room.players.values()) {
+          if (!p.userId && p.socketId === socketId) {
+            player = p
+            break
+          }
+        }
+      }
+      // If still not found, match by username ONLY if disconnected (reconnection after refresh)
+      if (!player) {
+        // First, try to find a disconnected player with same username
+        for (const p of room.players.values()) {
+          if (!p.userId && !p.isConnected && p.username === username) {
+            player = p
+            break
+          }
+        }
+        // If still not found and no active player with same username exists, allow reconnection
+        if (!player) {
+          const hasActivePlayerWithSameUsername = Array.from(
+            room.players.values()
+          ).some(p => !p.userId && p.isConnected && p.username === username)
+          // Only reuse if no active player with same username exists
+          if (!hasActivePlayerWithSameUsername) {
+            for (const p of room.players.values()) {
+              if (
+                !p.userId &&
+                p.username === username &&
+                p.socketId !== socketId
+              ) {
+                player = p
+                break
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (player) {
+      // Reuse existing player - preserve isHost status
+      const wasHost = player.isHost
+      player.socketId = socketId
+      player.isConnected = true
+      player.username = username
+      // Ensure host status is preserved
+      if (wasHost) {
+        player.isHost = true
+        player.isReady = true
+        room.hostId = player.userId || player.id
+      }
+    } else {
+      // Create new player
+      logger.info(
+        {
+          guestId,
+          username,
+          roomId: room.id,
+          existingPlayersCount: room.players.size,
+        },
+        'No existing player found, creating new player'
+      )
+      player = {
+        id: crypto.randomUUID(),
+        userId,
+        guestId, // Store guestId for persistent identification
+        username,
+        isHost: false,
+        isReady: false,
+        isConnected: true,
+        score: 0,
+        correctAnswers: 0,
+        socketId,
+        joinedAt: Date.now(),
+      }
+      room.players.set(player.id, player)
+    }
+
     await this.saveRoom(room)
 
     logger.info(
-      { roomId: room.id, playerId: player.id, username, playerCount: room.players.size },
+      {
+        roomId: room.id,
+        playerId: player.id,
+        username,
+        playerCount: room.players.size,
+      },
       'Player joined room'
     )
 
     return { room, player }
   }
 
-  /**
-   * Quitter une room
-   */
   async leaveRoom(roomId: string, playerId: string): Promise<Room | null> {
     const room = await this.getRoom(roomId)
 
@@ -173,21 +318,21 @@ export class RoomService {
       return room
     }
 
-    room.players.delete(playerId)
-
-    // Si le host quitte, fermer la room
-    if (player.isHost && room.players.size > 0) {
-      // Promouvoir un autre joueur comme host
-      const newHost = Array.from(room.players.values())[0]
-      if (newHost) {
-        newHost.isHost = true
-        newHost.isReady = true
-        room.hostId = newHost.userId || newHost.id
-        logger.info({ roomId, newHostId: newHost.id }, 'New host promoted')
-      }
+    // If host leaves, delete the room entirely
+    if (player.isHost) {
+      await this.deleteRoom(roomId)
+      logger.info({ roomId }, 'Room deleted because host left')
+      return null
     }
 
-    // Si plus personne, supprimer la room
+    // Guests: remove entirely on leave/disconnect
+    if (!player.userId) {
+      room.players.delete(playerId)
+    } else {
+      // Authenticated non-host: remove
+      room.players.delete(playerId)
+    }
+
     if (room.players.size === 0) {
       await this.deleteRoom(roomId)
       logger.info({ roomId }, 'Room deleted (empty)')
@@ -196,14 +341,14 @@ export class RoomService {
 
     await this.saveRoom(room)
 
-    logger.info({ roomId, playerId, playerCount: room.players.size }, 'Player left room')
+    logger.info(
+      { roomId, playerId, playerCount: room.players.size },
+      'Player left room'
+    )
 
     return room
   }
 
-  /**
-   * Marquer un joueur comme prêt/pas prêt
-   */
   async togglePlayerReady(roomId: string, playerId: string): Promise<Room> {
     const room = await this.getRoom(roomId)
 
@@ -227,9 +372,6 @@ export class RoomService {
     return room
   }
 
-  /**
-   * Démarrer la partie (host only)
-   */
   async startGame(roomId: string, hostId: string): Promise<Room> {
     const room = await this.getRoom(roomId)
 
@@ -245,9 +387,8 @@ export class RoomService {
       throw new Error('Game already started')
     }
 
-    // Vérifier que tous les joueurs sont prêts
     const allReady = Array.from(room.players.values()).every(
-      (p) => p.isReady || p.isHost
+      p => p.isReady || p.isHost
     )
 
     if (!allReady) {
@@ -265,9 +406,6 @@ export class RoomService {
     return room
   }
 
-  /**
-   * Récupérer une room par ID
-   */
   async getRoom(roomId: string): Promise<Room | null> {
     if (!isRedisAvailable()) {
       return null
@@ -281,8 +419,7 @@ export class RoomService {
       if (!data) return null
 
       const parsed = JSON.parse(data)
-
-      // Reconvertir players de Object à Map
+      // Convert players object back to Map
       parsed.players = new Map(Object.entries(parsed.players || {}))
 
       return parsed as Room
@@ -292,9 +429,6 @@ export class RoomService {
     }
   }
 
-  /**
-   * Récupérer une room par code
-   */
   async getRoomByCode(code: string): Promise<Room | null> {
     if (!isRedisAvailable()) {
       return null
@@ -314,9 +448,6 @@ export class RoomService {
     }
   }
 
-  /**
-   * Lister toutes les rooms publiques actives
-   */
   async listPublicRooms(): Promise<RoomListItem[]> {
     if (!isRedisAvailable()) {
       return []
@@ -341,7 +472,6 @@ export class RoomService {
           continue
         }
 
-        // Récupérer le titre du quiz
         const quiz = await prisma.quiz.findUnique({
           where: { id: room.quizId },
           select: { title: true },
@@ -372,9 +502,6 @@ export class RoomService {
     }
   }
 
-  /**
-   * Sauvegarder une room dans Redis
-   */
   private async saveRoom(room: Room): Promise<void> {
     if (!isRedisAvailable()) {
       return
@@ -384,18 +511,18 @@ export class RoomService {
       const redis = getRedis()
       if (!redis) return
 
-      // Convertir Map en objet pour JSON
+      // Convert Map to object for JSON serialization
       const serialized = {
         ...room,
         players: Object.fromEntries(room.players),
       }
 
       const pipeline = redis.pipeline()
-
-      // Sauvegarder la room
-      pipeline.setex(`room:${room.id}`, this.ROOM_TTL, JSON.stringify(serialized))
-
-      // Index par code
+      pipeline.setex(
+        `room:${room.id}`,
+        this.ROOM_TTL,
+        JSON.stringify(serialized)
+      )
       pipeline.setex(`room:code:${room.code}`, this.ROOM_TTL, room.id)
 
       await pipeline.exec()
@@ -404,9 +531,6 @@ export class RoomService {
     }
   }
 
-  /**
-   * Supprimer une room
-   */
   private async deleteRoom(roomId: string): Promise<void> {
     if (!isRedisAvailable()) {
       return
@@ -425,9 +549,6 @@ export class RoomService {
     }
   }
 
-  /**
-   * Mettre à jour le statut de connexion d'un joueur
-   */
   async updatePlayerConnection(
     roomId: string,
     playerId: string,

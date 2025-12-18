@@ -52,7 +52,10 @@ export function JoinRoomDialog({ trigger }: JoinRoomDialogProps) {
 
     if (result) {
       setOpen(false)
-      router.push(`/room/${result.room.id}`)
+      // Small delay to ensure state is saved
+      setTimeout(() => {
+        router.push(`/room/${result.room.id}`)
+      }, 100)
     } else if (error?.includes('password')) {
       setShowPassword(true)
     }

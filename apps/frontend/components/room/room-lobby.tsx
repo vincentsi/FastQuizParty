@@ -26,6 +26,7 @@ export function RoomLobby({
   const isHost = currentPlayer.isHost
   const allReady = room.players.every((p) => p.isReady || p.isHost)
   const canStart = isHost && allReady && room.players.length >= 2
+  const isPlayerConnected = currentPlayer.isConnected ?? false
 
   return (
     <div className="container mx-auto max-w-4xl py-8">
@@ -133,11 +134,17 @@ export function RoomLobby({
           {!isHost && (
             <Button
               onClick={onReady}
-              disabled={isLoading}
+              disabled={isLoading || !isPlayerConnected}
               variant={currentPlayer.isReady ? 'outline' : 'default'}
               className="w-full"
             >
-              {currentPlayer.isReady ? 'Not Ready' : 'Ready'}
+              {!isPlayerConnected 
+                ? 'Reconnecting...' 
+                : isLoading 
+                ? 'Loading...' 
+                : currentPlayer.isReady 
+                ? 'Not Ready' 
+                : 'Ready'}
             </Button>
           )}
 

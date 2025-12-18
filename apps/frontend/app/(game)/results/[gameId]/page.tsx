@@ -1,18 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { ResultsPage } from '@/components/game/results-page'
 import type { LeaderboardEntry } from '@/types/game'
 import { Card, CardContent } from '@/components/ui/card'
 import { Loader2 } from 'lucide-react'
 
-interface Props {
-  params: { gameId: string }
-}
-
-export default function ResultsStandalonePage({ params }: Props) {
-  const { gameId } = params
+export default function ResultsStandalonePage() {
+  const params = useParams()
+  const gameId = params.gameId as string
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

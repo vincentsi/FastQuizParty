@@ -4,8 +4,13 @@ import { z } from 'zod'
  * Zod schemas for Room WebSocket events
  */
 
+// Accept both CUID format (c + alphanumeric) and custom IDs (like quiz-culture-generale-1)
+// CUID: starts with 'c' followed by at least 8 alphanumeric characters
+// Custom: alphanumeric, hyphens, underscores, at least 3 characters
+const quizIdRegex = /^(c[0-9a-z]{8,}|[a-z0-9_-]{3,})$/
+
 export const RoomCreateSchema = z.object({
-  quizId: z.string().uuid('Invalid quiz ID format'),
+  quizId: z.string().regex(quizIdRegex, 'Invalid quiz ID format'),
   maxPlayers: z.number().int().min(2).max(50).optional().default(10),
   questionTime: z.number().int().min(5).max(60).optional().default(15),
   isPrivate: z.boolean().optional().default(false),

@@ -59,10 +59,12 @@ export async function socketOptionalAuthMiddleware(
 
     if (!token) {
       // Allow guest users
+      const guestId = socket.handshake.auth.guestId as string | undefined
       socket.data.isAuthenticated = false
       socket.data.userId = undefined
       socket.data.role = undefined
-      logger.info({ socketId: socket.id }, 'WebSocket connected as guest')
+      socket.data.guestId = guestId // Store guestId for guest identification
+      logger.info({ socketId: socket.id, guestId }, 'WebSocket connected as guest')
       return next()
     }
 

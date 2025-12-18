@@ -12,6 +12,7 @@ export enum GameStatus {
 export interface Player {
   id: string
   userId?: string
+  guestId?: string // Persistent ID for guest players
   username: string
   isHost: boolean
   isReady: boolean

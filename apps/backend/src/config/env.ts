@@ -34,7 +34,9 @@ const envSchema = z.object({
 
       origins.forEach(origin => {
         if (origin === '*') {
-          throw new Error('Wildcard CORS origin (*) is not allowed for security')
+          throw new Error(
+            'Wildcard CORS origin (*) is not allowed for security'
+          )
         }
 
         try {
@@ -72,6 +74,8 @@ const envSchema = z.object({
   // Worker Configuration
   DISABLE_STRIPE_WORKER: z.string().optional(),
 
+  // OpenAI
+  OPENAI_API_KEY: z.string().optional(),
 })
 
 /**

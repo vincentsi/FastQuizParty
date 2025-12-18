@@ -26,10 +26,12 @@ export function registerRoomHandlers(io: Server, socket: Socket) {
    * Create a new game room
    */
   socket.on('room:create', async (data, callback) => {
+    logger.info({ data, socketId: socket.id }, 'Received room:create event')
     const validate = validateSocketEvent(RoomCreateSchema)
     const validated = validate(socket, data)
 
     if (!validated) {
+      logger.warn({ data, socketId: socket.id }, 'Room creation validation failed')
       return callback?.({ success: false, error: 'Invalid data' })
     }
 
@@ -37,15 +39,28 @@ export function registerRoomHandlers(io: Server, socket: Socket) {
       const userId = socket.data.userId
       const username = socket.data.username || 'Guest'
 
+      const guestId = !userId ? (socket.data.guestId as string | undefined) : undefined
+
+      // For guests, use undefined as hostId (not socket.id) so they can be matched by guestId on rejoin
+      const hostId = userId || undefined
+
       const room = await roomService.createRoom(
-        userId || socket.id,
+        hostId,
         username,
         socket.id,
-        validated
+        validated,
+        guestId
       )
 
       // Join socket to room channel
       await socket.join(room.id)
+
+      // Store player ID and room ID in socket data
+      const host = Array.from(room.players.values()).find(p => p.isHost)
+      if (host) {
+        socket.data.playerId = host.id
+        socket.data.roomId = room.id
+      }
 
       logger.info(
         { roomId: room.id, code: room.code, userId, socketId: socket.id },
@@ -87,13 +102,52 @@ export function registerRoomHandlers(io: Server, socket: Socket) {
       const userId = socket.data.userId
       const username = validated.username || socket.data.username || 'Guest'
 
+      // If in a different room, leave it first
+      const existingRoomId = socket.data.roomId
+      const roomByCode = await roomService.getRoomByCode(validated.code)
+      if (existingRoomId && roomByCode && existingRoomId !== roomByCode.id) {
+        const existingPlayerId = socket.data.playerId
+        if (existingPlayerId) {
+          await roomService.leaveRoom(existingRoomId, existingPlayerId)
+          socket.leave(existingRoomId)
+          socket.data.roomId = undefined
+          socket.data.playerId = undefined
+        }
+      }
+
+      const guestId = !userId ? (socket.data.guestId as string | undefined) : undefined
+
+      // Check if we need to clean zombies first
+      // This allows us to broadcast the cleaned state immediately
+      const roomBeforeJoin = await roomService.getRoomByCode(validated.code)
+      let needsZombieCleanBroadcast = false
+      if (roomBeforeJoin && guestId) {
+        // Check if there are zombies with this guestId
+        for (const p of roomBeforeJoin.players.values()) {
+          if (!p.userId && p.guestId === guestId && !p.isConnected) {
+            needsZombieCleanBroadcast = true
+            break
+          }
+        }
+      }
+
       const { room, player } = await roomService.joinRoom(
         validated.code,
         userId,
         username,
         socket.id,
-        validated.password
+        validated.password,
+        guestId
       )
+
+      // If zombies were cleaned, broadcast immediately to all clients in room
+      // This prevents other users from seeing the zombie until the join completes
+      if (needsZombieCleanBroadcast && roomBeforeJoin) {
+        logger.info({ roomId: room.id, guestId }, 'Broadcasting zombie cleanup to room')
+        io.to(roomBeforeJoin.id).emit('room:updated', {
+          room: serializeRoom(room),
+        })
+      }
 
       // Join socket to room channel
       await socket.join(room.id)
@@ -116,7 +170,25 @@ export function registerRoomHandlers(io: Server, socket: Socket) {
         },
       })
 
-      // Broadcast to all players in room
+      // Small delay to ensure room is saved to Redis before broadcasting
+      // This ensures room:updated has the latest state with isConnected: true
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Broadcast to all players in room (send full room state for sync)
+      // Re-fetch room from Redis to ensure we have the latest state
+      const latestRoom = await roomService.getRoom(room.id)
+      if (latestRoom) {
+        io.to(room.id).emit('room:updated', {
+          room: serializeRoom(latestRoom),
+        })
+      } else {
+        // Fallback to original room if fetch fails
+        io.to(room.id).emit('room:updated', {
+          room: serializeRoom(room),
+        })
+      }
+
+      // Also send individual player joined event for backward compatibility
       socket.to(room.id).emit('room:player:joined', {
         player,
         playerCount: room.players.size,
@@ -162,7 +234,12 @@ export function registerRoomHandlers(io: Server, socket: Socket) {
       callback?.({ success: true })
 
       if (room) {
-        // Room still exists, broadcast to remaining players
+        // Room still exists, broadcast full room state to remaining players
+        io.to(roomId).emit('room:updated', {
+          room: serializeRoom(room),
+        })
+
+        // Also send individual player left event for backward compatibility
         socket.to(roomId).emit('room:player:left', {
           playerId,
           playerCount: room.players.size,
@@ -210,7 +287,12 @@ export function registerRoomHandlers(io: Server, socket: Socket) {
 
       callback?.({ success: true, isReady: player?.isReady })
 
-      // Broadcast to all players in room
+      // Broadcast full room state to all players
+      io.to(roomId).emit('room:updated', {
+        room: serializeRoom(room),
+      })
+
+      // Also send individual ready event for backward compatibility
       io.to(roomId).emit('room:player:ready', {
         playerId,
         isReady: player?.isReady,
@@ -304,7 +386,12 @@ export function registerRoomHandlers(io: Server, socket: Socket) {
         logger.info({ roomId, playerId, socketId: socket.id }, 'Player disconnected from room')
 
         if (room) {
-          // Room still exists
+          // Room still exists, broadcast full room state
+          io.to(roomId).emit('room:updated', {
+            room: serializeRoom(room),
+          })
+
+          // Also send individual disconnected event for backward compatibility
           socket.to(roomId).emit('room:player:disconnected', {
             playerId,
             playerCount: room.players.size,

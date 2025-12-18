@@ -3,6 +3,7 @@ import type { GameStatus } from '@prisma/client'
 export interface Player {
   id: string
   userId?: string // Optional for guest players
+  guestId?: string // Persistent ID for guest players (stored in localStorage)
   username: string
   isHost: boolean
   isReady: boolean

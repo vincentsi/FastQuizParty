@@ -109,12 +109,34 @@ apiClient.interceptors.response.use(
 
     // If 401 and not already refreshing
     if (error.response?.status === 401 && originalRequest && !isRefreshing) {
+      // Public routes that don't need auth - don't try to refresh
+      const publicRoutes = [
+        '/api/quiz',
+        '/api/quiz/',
+        '/api/rooms',
+        '/api/games',
+      ]
+      
+      const isPublicRoute = publicRoutes.some(route => 
+        originalRequest.url?.includes(route)
+      )
+      
+      if (isPublicRoute) {
+        // For public routes, just return the error (might be a different 401)
+        return Promise.reject(error)
+      }
+
       // Avoid infinite loop on /refresh, /login, /register
       if (
         originalRequest.url?.includes('/auth/refresh') ||
         originalRequest.url?.includes('/auth/login') ||
         originalRequest.url?.includes('/auth/register')
       ) {
+        // Don't redirect for /auth/me failures (user might not be logged in)
+        if (originalRequest.url?.includes('/auth/me')) {
+          return Promise.reject(error)
+        }
+        
         // Redirect to login if refresh fails
         if (
           typeof window !== 'undefined' &&
