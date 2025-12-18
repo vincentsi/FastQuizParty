@@ -293,6 +293,33 @@ export function useRoom() {
     // The room:updated event handles all state synchronization
     // This prevents race conditions and duplicate players
 
+    // Host transferred
+    socket.on(
+      'room:host:transferred',
+      (data: { newHostId: string; newHostUsername?: string }) => {
+        setRoom(prev => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            hostId: data.newHostId,
+            players: prev.players.map(p =>
+              p.id === data.newHostId
+                ? { ...p, isHost: true, isReady: true }
+                : { ...p, isHost: false }
+            ),
+          }
+        })
+
+        // Update current player if we're the new host
+        setCurrentPlayer(prev => {
+          if (prev?.id === data.newHostId) {
+            return { ...prev, isHost: true, isReady: true }
+          }
+          return prev
+        })
+      }
+    )
+
     // Player left
     socket.on(
       'room:player:left',
@@ -418,6 +445,7 @@ export function useRoom() {
 
     return () => {
       socket.off('room:updated')
+      socket.off('room:host:transferred')
       socket.off('room:player:left')
       socket.off('room:player:disconnected')
       socket.off('room:player:ready')

@@ -220,7 +220,7 @@ export function registerRoomHandlers(io: Server, socket: Socket) {
         return callback?.({ success: false, error: 'Not in a room' })
       }
 
-      const room = await roomService.leaveRoom(roomId, playerId)
+      const result = await roomService.leaveRoom(roomId, playerId)
 
       // Leave socket room
       await socket.leave(roomId)
@@ -233,20 +233,29 @@ export function registerRoomHandlers(io: Server, socket: Socket) {
 
       callback?.({ success: true })
 
-      if (room) {
+      if (result.room) {
+        // If host was transferred, emit host transfer event first
+        if (result.newHostId) {
+          const newHost = result.room.players.get(result.newHostId)
+          io.to(roomId).emit('room:host:transferred', {
+            newHostId: result.newHostId,
+            newHostUsername: newHost?.username,
+          })
+        }
+
         // Room still exists, broadcast full room state to remaining players
         io.to(roomId).emit('room:updated', {
-          room: serializeRoom(room),
+          room: serializeRoom(result.room),
         })
 
         // Also send individual player left event for backward compatibility
         socket.to(roomId).emit('room:player:left', {
           playerId,
-          playerCount: room.players.size,
+          playerCount: result.room.players.size,
         })
 
         // Update public room list
-        if (!room.isPrivate) {
+        if (!result.room.isPrivate) {
           io.emit('room:list:updated')
         }
       } else {
@@ -381,23 +390,32 @@ export function registerRoomHandlers(io: Server, socket: Socket) {
 
     if (roomId && playerId) {
       try {
-        const room = await roomService.leaveRoom(roomId, playerId)
+        const result = await roomService.leaveRoom(roomId, playerId)
 
         logger.info({ roomId, playerId, socketId: socket.id }, 'Player disconnected from room')
 
-        if (room) {
+        if (result.room) {
+          // If host was transferred, emit host transfer event first
+          if (result.newHostId) {
+            const newHost = result.room.players.get(result.newHostId)
+            io.to(roomId).emit('room:host:transferred', {
+              newHostId: result.newHostId,
+              newHostUsername: newHost?.username,
+            })
+          }
+
           // Room still exists, broadcast full room state
           io.to(roomId).emit('room:updated', {
-            room: serializeRoom(room),
+            room: serializeRoom(result.room),
           })
 
           // Also send individual disconnected event for backward compatibility
           socket.to(roomId).emit('room:player:disconnected', {
             playerId,
-            playerCount: room.players.size,
+            playerCount: result.room.players.size,
           })
 
-          if (!room.isPrivate) {
+          if (!result.room.isPrivate) {
             io.emit('room:list:updated')
           }
         } else {

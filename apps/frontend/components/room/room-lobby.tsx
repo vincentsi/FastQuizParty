@@ -4,7 +4,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import type { Room, Player } from '@/types/room'
-import { Users, Clock, Play, LogOut, Check, X, Wifi, WifiOff } from 'lucide-react'
+import { Users, Clock, Play, LogOut, Check, X, Wifi, WifiOff, Crown } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useSocket } from '@/lib/socket/socket-context'
 
 interface RoomLobbyProps {
   room: Room
@@ -27,9 +29,49 @@ export function RoomLobby({
   const allReady = room.players.every((p) => p.isReady || p.isHost)
   const canStart = isHost && allReady && room.players.length >= 2
   const isPlayerConnected = currentPlayer.isConnected ?? false
+  const [hostTransferMessage, setHostTransferMessage] = useState<string | null>(null)
+  const { socket } = useSocket()
+
+  // Listen for host transfer events
+  useEffect(() => {
+    if (!socket) return
+
+    const handleHostTransferred = (data: { newHostId: string; newHostUsername?: string }) => {
+      const isNewHost = data.newHostId === currentPlayer.id
+
+      if (isNewHost) {
+        setHostTransferMessage('You are now the host!')
+      } else {
+        setHostTransferMessage(`${data.newHostUsername || 'Someone'} is now the host`)
+      }
+
+      // Clear message after 5 seconds
+      setTimeout(() => {
+        setHostTransferMessage(null)
+      }, 5000)
+    }
+
+    socket.on('room:host:transferred', handleHostTransferred)
+
+    return () => {
+      socket.off('room:host:transferred', handleHostTransferred)
+    }
+  }, [socket, currentPlayer.id])
 
   return (
     <div className="container mx-auto max-w-4xl py-8">
+      {/* Host Transfer Notification */}
+      {hostTransferMessage && (
+        <Card className="mb-4 border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
+          <CardContent className="flex items-center gap-2 py-3">
+            <Crown className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+            <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+              {hostTransferMessage}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Room Header */}
       <Card className="mb-6">
         <CardHeader>
@@ -104,7 +146,8 @@ export function RoomLobby({
                     </div>
                     <div className="flex gap-2 text-sm">
                       {player.isHost && (
-                        <Badge variant="default" className="text-xs">
+                        <Badge variant="default" className="text-xs flex items-center gap-1">
+                          <Crown className="h-3 w-3" />
                           Host
                         </Badge>
                       )}

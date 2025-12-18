@@ -306,47 +306,63 @@ export class RoomService {
     return { room, player }
   }
 
-  async leaveRoom(roomId: string, playerId: string): Promise<Room | null> {
+  async leaveRoom(roomId: string, playerId: string): Promise<{ room: Room | null; newHostId?: string }> {
     const room = await this.getRoom(roomId)
 
     if (!room) {
-      return null
+      return { room: null }
     }
 
     const player = room.players.get(playerId)
     if (!player) {
-      return room
+      return { room }
     }
 
-    // If host leaves, delete the room entirely
-    if (player.isHost) {
-      await this.deleteRoom(roomId)
-      logger.info({ roomId }, 'Room deleted because host left')
-      return null
-    }
+    const wasHost = player.isHost
 
-    // Guests: remove entirely on leave/disconnect
-    if (!player.userId) {
-      room.players.delete(playerId)
-    } else {
-      // Authenticated non-host: remove
-      room.players.delete(playerId)
-    }
+    // Remove player from room
+    room.players.delete(playerId)
 
+    // If room is now empty, delete it
     if (room.players.size === 0) {
       await this.deleteRoom(roomId)
       logger.info({ roomId }, 'Room deleted (empty)')
-      return null
+      return { room: null }
+    }
+
+    // If host left and room still has players, transfer host to oldest player
+    let newHostId: string | undefined
+    if (wasHost) {
+      // Find oldest player (lowest joinedAt timestamp)
+      let oldestPlayer: Player | undefined
+      for (const p of room.players.values()) {
+        if (!oldestPlayer || p.joinedAt < oldestPlayer.joinedAt) {
+          oldestPlayer = p
+        }
+      }
+
+      if (oldestPlayer) {
+        // Transfer host to oldest player
+        oldestPlayer.isHost = true
+        oldestPlayer.isReady = true
+        room.hostId = oldestPlayer.id
+        newHostId = oldestPlayer.id
+
+        logger.info(
+          { roomId, oldHostId: playerId, newHostId, newHostUsername: oldestPlayer.username },
+          'Host transferred to oldest player'
+        )
+      }
     }
 
     await this.saveRoom(room)
 
     logger.info(
-      { roomId, playerId, playerCount: room.players.size },
+      { roomId, playerId, playerCount: room.players.size, hostTransferred: !!newHostId },
       'Player left room'
     )
 
-    return room
+    return { room, newHostId }
   }
 
   async togglePlayerReady(roomId: string, playerId: string): Promise<Room> {
