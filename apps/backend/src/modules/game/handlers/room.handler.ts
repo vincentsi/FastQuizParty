@@ -322,15 +322,15 @@ export function registerRoomHandlers(io: Server, socket: Socket) {
   socket.on('room:start', async (callback) => {
     try {
       const roomId = socket.data.roomId
-      const userId = socket.data.userId || socket.id
+      const playerId = socket.data.playerId
 
-      if (!roomId) {
+      if (!roomId || !playerId) {
         return callback?.({ success: false, error: 'Not in a room' })
       }
 
-      const room = await roomService.startGame(roomId, userId)
+      const room = await roomService.startGame(roomId, playerId)
 
-      logger.info({ roomId, hostId: userId, playerCount: room.players.size }, 'Game starting')
+      logger.info({ roomId, hostId: playerId, playerCount: room.players.size }, 'Game starting')
 
       callback?.({ success: true })
 
