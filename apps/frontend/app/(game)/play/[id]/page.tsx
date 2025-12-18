@@ -2,8 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { quizApi } from '@/lib/api/quiz'
-import type { Question, Quiz } from '@prisma/client'
+import { quizApi, type Question, type Quiz } from '@/lib/api/quiz'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'

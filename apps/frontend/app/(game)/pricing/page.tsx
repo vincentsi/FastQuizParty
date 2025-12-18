@@ -96,7 +96,7 @@ export default function PricingPage() {
             Simple pricing for teams that need reliable quizzes, realtime rooms,
             and a clean admin experience.
           </p>
-          {currentPlan && (
+          {user && currentPlan && (
             <p className="text-sm text-white/60">
               Your current plan:{' '}
               <span className="font-semibold text-white">{currentPlan}</span>
@@ -121,7 +121,7 @@ export default function PricingPage() {
 
       <div className="grid gap-6 md:grid-cols-3">
         {PLANS.map(plan => {
-          const isCurrentPlan = currentPlan === plan.name
+          const isCurrentPlan = !!(user && currentPlan === plan.name)
 
           return (
             <Card
