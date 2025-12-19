@@ -97,6 +97,17 @@ export function AnswerReveal({ result }: AnswerRevealProps) {
             Better luck next time!
           </motion.p>
         )}
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.2 }}
+          className="mt-6 border-t pt-4"
+        >
+          <p className="text-sm text-muted-foreground">
+            En attente des autres joueurs ou fin de la question...
+          </p>
+        </motion.div>
       </motion.div>
     </motion.div>
   )

@@ -21,6 +21,7 @@ export interface GameState {
   roomId: string
   roomCode: string
   hostId: string
+  hostUserId?: string // User ID of host (undefined for guest hosts)
   quizId: string
   questions: Question[]
   currentQuestionIndex: number
@@ -73,11 +74,15 @@ export class GameService {
       throw new Error('Quiz not found or has no questions')
     }
 
+    // Trouver le host player pour obtenir son userId
+    const hostPlayer = Array.from(room.players.values()).find(p => p.id === room.hostId)
+
     // Initialiser le game state
     const gameState: GameState = {
       roomId: room.id,
       roomCode: room.code,
       hostId: room.hostId,
+      hostUserId: hostPlayer?.userId, // undefined for guest hosts
       quizId: room.quizId,
       questions: quiz.questions,
       currentQuestionIndex: 0,
@@ -304,10 +309,9 @@ export class GameService {
       )
     })
 
-    // Nettoyer le state en Redis une fois terminé
-    this.deleteGameState(gameState.roomId).catch((error) => {
-      logger.warn({ error, roomId: gameState.roomId }, 'Failed to delete game state from redis')
-    })
+    // NOTE: Ne PAS supprimer le gameState immédiatement!
+    // Il sera supprimé après l'émission de game:finished dans le handler
+    // ou par un TTL Redis si configuré
 
     logger.info(
       {
@@ -391,12 +395,22 @@ export class GameService {
    * Sauvegarder la partie en base de données
    */
   private async saveGameToDatabase(gameState: GameState): Promise<void> {
+    // Skip saving if host is a guest (no userId)
+    // The Game.hostId field requires a foreign key to User table
+    if (!gameState.hostUserId) {
+      logger.info(
+        { roomId: gameState.roomId, hostId: gameState.hostId },
+        'Skipping database save for guest-hosted game'
+      )
+      return
+    }
+
     // Créer le record Game
     const game = await prisma.game.create({
       data: {
         code: gameState.roomCode,
         quizId: gameState.quizId,
-        hostId: gameState.hostId,
+        hostId: gameState.hostUserId, // Use hostUserId instead of hostId (player ID)
         status: gameState.status,
         totalQuestions: gameState.questions.length,
         startedAt: new Date(gameState.startedAt),

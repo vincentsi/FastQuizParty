@@ -87,7 +87,7 @@ export default function RoomPage() {
           const parsed = JSON.parse(storedRoomData)
           const player = parsed.room?.players?.find((p: { id: string }) => p.id === storedPlayerId)
           storedUsername = player?.username
-        } catch (e) {
+        } catch {
           // Ignore parse errors
         }
       }
@@ -156,7 +156,7 @@ export default function RoomPage() {
 
     // When game status changes to STARTING, redirect to game page
     router.push(`/room/${room.id}/game`)
-  }, [room?.status, room?.id, router])
+  }, [room, router])
 
   // Loading state - connecting to server
   if (!isConnected) {

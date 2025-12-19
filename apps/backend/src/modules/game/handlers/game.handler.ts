@@ -13,6 +13,19 @@ import { roomService } from '../services/room.service'
  * - Broadcast des updates aux joueurs
  */
 
+// Map pour stocker les timers actifs par room
+const questionTimers = new Map<string, NodeJS.Timeout>()
+
+// Fonction pour annuler un timer
+function clearQuestionTimer(roomId: string) {
+  const timer = questionTimers.get(roomId)
+  if (timer) {
+    clearTimeout(timer)
+    questionTimers.delete(roomId)
+    logger.info({ roomId }, 'Question timer cleared')
+  }
+}
+
 export function registerGameHandlers(io: Server, socket: Socket) {
   /**
    * Soumettre une réponse
@@ -107,27 +120,75 @@ export function registerGameHandlers(io: Server, socket: Socket) {
         return
       }
 
-      // Broadcast update du scoreboard
+      // Broadcast update du scoreboard (sans changer la phase)
       const leaderboard = gameService.getLeaderboard(updatedGameState)
       io.to(roomId).emit('game:scoreboard:update', {
         leaderboard,
       })
 
-      // Vérifier si tous les joueurs ont répondu
+      // Vérifier si tous les joueurs connectés ont répondu
       const room = await roomService.getRoom(roomId)
       if (room) {
-        const allAnswered = Array.from(
-          updatedGameState.playerAnswers.values()
-        ).every(
-          answers =>
-            answers.length === updatedGameState.currentQuestionIndex + 1
-        )
+        // Compter uniquement les joueurs actuellement dans la room
+        const activePlayers = Array.from(room.players.values())
+        const activePlayerIds = activePlayers.map(p => p.id)
 
-        // Si tous ont répondu, avancer à la question suivante après 2s
-        if (allAnswered) {
-          setTimeout(async () => {
-            await advanceToNextQuestion(io, roomId)
-          }, 2000)
+        // Vérifier si tous les joueurs actifs ont répondu à la question actuelle
+        const allAnswered = activePlayerIds.every(playerId => {
+          const playerAnswers = updatedGameState.playerAnswers.get(playerId) || []
+          return playerAnswers.length === updatedGameState.currentQuestionIndex + 1
+        })
+
+        logger.info({
+          roomId,
+          currentQuestionIndex: updatedGameState.currentQuestionIndex,
+          activePlayers: activePlayers.length,
+          allAnswered,
+        }, 'Checking if all players answered')
+
+        // Si tous ont répondu, annuler le timer de timeout et avancer/finir
+        if (allAnswered && activePlayers.length > 0) {
+          // Vérifier si c'est la dernière question
+          const isLastQuestion = updatedGameState.currentQuestionIndex === updatedGameState.questions.length - 1
+
+          if (isLastQuestion) {
+            logger.info({ roomId }, 'All players answered last question, finishing game soon')
+
+            // Annuler le timer de timeout
+            clearQuestionTimer(roomId)
+
+            // Attendre 1.5s pour laisser voir le résultat, puis finir
+            setTimeout(async () => {
+              await gameService.endGame(updatedGameState)
+              const finalGameState = await gameService.getGameState(roomId)
+
+              if (finalGameState) {
+                const leaderboard = gameService.getLeaderboard(finalGameState)
+                io.to(roomId).emit('game:finished', {
+                  leaderboard,
+                  duration: finalGameState.finishedAt! - finalGameState.startedAt,
+                })
+
+                logger.info({ roomId }, 'Game finished after last question')
+
+                // Nettoyer le gameState après l'émission
+                setTimeout(() => {
+                  gameService.deleteGameState(roomId).catch((error) => {
+                    logger.warn({ error, roomId }, 'Failed to delete game state from redis')
+                  })
+                }, 5000)
+              }
+            }, 1500)
+          } else {
+            logger.info({ roomId }, 'All players answered, advancing to next question')
+
+            // Annuler le timer de timeout de la question
+            clearQuestionTimer(roomId)
+
+            setTimeout(async () => {
+              await advanceToNextQuestion(io, roomId)
+            }, 2000)
+          }
         }
       }
 
@@ -195,6 +256,14 @@ async function advanceToNextQuestion(
     })
 
     logger.info({ roomId }, 'Game finished, all questions answered')
+
+    // Nettoyer le gameState après l'émission
+    setTimeout(() => {
+      gameService.deleteGameState(roomId).catch((error) => {
+        logger.warn({ error, roomId }, 'Failed to delete game state from redis')
+      })
+    }, 5000)
+
     return
   }
 
@@ -224,12 +293,15 @@ async function advanceToNextQuestion(
   })
 
   // Timer automatique pour la question
-  setTimeout(
+  const timer = setTimeout(
     async () => {
       await handleQuestionTimeout(io, roomId)
     },
     nextQuestion.timeLimit * 1000 + 500
   ) // +500ms de buffer
+
+  // Stocker le timer pour pouvoir l'annuler si besoin
+  questionTimers.set(roomId, timer)
 }
 
 /**
@@ -239,6 +311,9 @@ async function handleQuestionTimeout(
   io: Server,
   roomId: string
 ): Promise<void> {
+  // Supprimer le timer de la Map (il vient de se déclencher)
+  questionTimers.delete(roomId)
+
   // Recharger le gameState depuis Redis
   const gameState = await gameService.getGameState(roomId)
   if (!gameState) {
@@ -251,6 +326,8 @@ async function handleQuestionTimeout(
     logger.warn({ roomId }, 'No current question on timeout')
     return
   }
+
+  logger.info({ roomId }, 'Question timeout - showing answer and advancing')
 
   // Broadcast que le temps est écoulé
   io.to(roomId).emit('game:question:timeout', {
@@ -314,12 +391,15 @@ export async function startGameFlow(io: Server, roomId: string): Promise<void> {
     })
 
     // Timer pour la première question
-    setTimeout(
+    const timer = setTimeout(
       async () => {
         await handleQuestionTimeout(io, roomId)
       },
       firstQuestion.timeLimit * 1000 + 500
     )
+
+    // Stocker le timer pour pouvoir l'annuler si besoin
+    questionTimers.set(roomId, timer)
 
     logger.info({ roomId, quizId: room.quizId }, 'Game flow started')
   } catch (error) {

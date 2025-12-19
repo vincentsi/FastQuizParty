@@ -175,12 +175,11 @@ export function useGame() {
       }))
     })
 
-    // Scoreboard update
+    // Scoreboard update (just update leaderboard, don't change phase)
     socket.on('game:scoreboard:update', (data: { leaderboard: LeaderboardEntry[] }) => {
       setGameState((prev) => ({
         ...prev,
         leaderboard: data.leaderboard,
-        phase: 'SCOREBOARD' as GamePhase,
       }))
     })
 
@@ -193,6 +192,8 @@ export function useGame() {
         phase: 'FINISHED' as GamePhase,
         leaderboard: data.leaderboard,
         duration: data.duration ?? prev.duration,
+        answerResult: null, // Clear answer result to hide overlay
+        currentQuestion: null, // Clear current question
       }))
     })
 
