@@ -150,6 +150,14 @@ export default function RoomPage() {
     }
   }
 
+  // Listen for game starting event and redirect all players
+  useEffect(() => {
+    if (!room || room.status !== 'STARTING') return
+
+    // When game status changes to STARTING, redirect to game page
+    router.push(`/room/${room.id}/game`)
+  }, [room?.status, room?.id, router])
+
   // Loading state - connecting to server
   if (!isConnected) {
     return (
