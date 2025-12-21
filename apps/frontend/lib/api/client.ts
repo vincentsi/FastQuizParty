@@ -60,15 +60,31 @@ const MAX_SUBSCRIBERS = 100 // Prevent memory leak
 let refreshAttempts = 0
 
 // Periodic cleanup: Clear stale subscribers every 30 seconds
+// ✅ FIXED: Properly manage interval lifecycle to prevent memory leak
+let cleanupIntervalId: NodeJS.Timeout | null = null
+
 if (typeof window !== 'undefined') {
-  setInterval(() => {
-    if (refreshSubscribers.length > 0 && !isRefreshing) {
-      console.warn(
-        `⚠️ Cleaning up ${refreshSubscribers.length} stale refresh subscribers`
-      )
-      refreshSubscribers = []
-    }
-  }, 30000) // 30 seconds
+  // Only start interval if not already running
+  if (!cleanupIntervalId) {
+    cleanupIntervalId = setInterval(() => {
+      if (refreshSubscribers.length > 0 && !isRefreshing) {
+        console.warn(
+          `⚠️ Cleaning up ${refreshSubscribers.length} stale refresh subscribers`
+        )
+        refreshSubscribers = []
+      }
+    }, 30000) // 30 seconds
+  }
+
+  // Cleanup on module hot reload (development)
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => {
+      if (cleanupIntervalId) {
+        clearInterval(cleanupIntervalId)
+        cleanupIntervalId = null
+      }
+    })
+  }
 }
 
 // In-memory refresh attempt helpers (not accessible via localStorage)

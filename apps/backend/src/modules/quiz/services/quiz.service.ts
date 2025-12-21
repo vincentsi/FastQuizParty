@@ -16,7 +16,7 @@ export class QuizService {
    * Get all quizzes with cursor-based pagination and filters
    */
   async getQuizzes(query: GetQuizzesQuery, userId?: string) {
-    const { page, limit, categoryId, difficulty, isPublic, search } = query
+    const { page, limit, categoryId, difficulty, isPublic, search, authorId } = query
 
     // Pour la compatibilité avec le frontend existant, on garde page/limit
     // mais on les convertit en cursor-based en interne
@@ -27,6 +27,7 @@ export class QuizService {
     // Base filters
     if (categoryId) where.categoryId = categoryId
     if (difficulty && difficulty !== 'MIXED') where.difficulty = difficulty
+    if (authorId) where.authorId = authorId
 
     // Visibility filter
     if (isPublic !== undefined) {
@@ -49,8 +50,8 @@ export class QuizService {
       })
     }
 
-    // If authenticated and no explicit isPublic filter, show public quizzes + user's own quizzes
-    if (userId && isPublic === undefined) {
+    // If authenticated and no explicit isPublic filter and no authorId filter, show public quizzes + user's own quizzes
+    if (userId && isPublic === undefined && !authorId) {
       andConditions.push({
         OR: [{ isPublic: true }, { authorId: userId }],
       })
@@ -62,7 +63,7 @@ export class QuizService {
     }
 
     // Build cache key from filters
-    const filterKey = JSON.stringify({ categoryId, difficulty, isPublic, search, userId })
+    const filterKey = JSON.stringify({ categoryId, difficulty, isPublic, search, userId, authorId })
     const cacheKey = CacheKeys.quizList(page, filterKey)
 
     // Try cache first
@@ -206,8 +207,14 @@ export class QuizService {
 
     logger.info({ quizId: quiz.id, authorId }, 'Quiz created')
 
-    // Invalidate quiz list cache
-    await CacheService.deletePattern('quiz:list:*')
+    // Invalidate quiz list caches (only author's caches to reduce impact)
+    if (authorId) {
+      await CacheService.deletePattern(`quiz:list:*authorId=${authorId}*`)
+    }
+    // Also invalidate public quiz lists if quiz is public
+    if (quiz.isPublic) {
+      await CacheService.deletePattern('quiz:list:*isPublic=true*')
+    }
 
     return quiz
   }
@@ -246,7 +253,15 @@ export class QuizService {
     // Invalidate cache for this quiz
     await CacheService.delete(CacheKeys.quiz(id))
     await CacheService.delete(CacheKeys.quizQuestions(id))
-    await CacheService.deletePattern('quiz:list:*')
+
+    // Selective cache invalidation (only affected lists)
+    await CacheService.deletePattern(`quiz:list:*authorId=${userId}*`)
+    if (updated.categoryId) {
+      await CacheService.deletePattern(`quiz:list:*categoryId=${updated.categoryId}*`)
+    }
+    if (updated.isPublic) {
+      await CacheService.deletePattern('quiz:list:*isPublic=true*')
+    }
 
     return updated
   }
@@ -278,7 +293,9 @@ export class QuizService {
     // Invalidate cache
     await CacheService.delete(CacheKeys.quiz(id))
     await CacheService.delete(CacheKeys.quizQuestions(id))
-    await CacheService.deletePattern('quiz:list:*')
+
+    // Selective invalidation
+    await CacheService.deletePattern(`quiz:list:*authorId=${userId}*`)
   }
 
   /**

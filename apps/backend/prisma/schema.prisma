@@ -157,6 +157,7 @@ model Subscription {
   @@index([currentPeriodEnd]) // Performance: find expiring subscriptions
   @@index([status, currentPeriodEnd]) // Performance: find expiring subscriptions by status
   @@index([stripeSubscriptionId, status]) // Performance: webhook update queries (composite lookup)
+  @@index([userId, status, currentPeriodEnd])
   @@map("subscriptions")
 }
 
@@ -199,6 +200,7 @@ model Category {
   updatedAt DateTime @updatedAt
 
   @@index([slug])
+  @@index([slug, id])
   @@map("categories")
 }
 
@@ -335,6 +337,8 @@ model Game {
   @@index([createdAt])
   @@index([quizId])
   @@index([hostId, status])
+  @@index([quizId, status])
+  @@index([status, createdAt])
   @@map("games")
 }
 
@@ -382,6 +386,8 @@ model GamePlayer {
   @@index([gameId])
   @@index([userId])
   @@index([score])
+  @@index([gameId, score])
+  @@index([userId, joinedAt])
   @@map("game_players")
 }
 
@@ -403,6 +409,7 @@ model PlayerAnswer {
   @@unique([gamePlayerId, questionId])
   @@index([gamePlayerId])
   @@index([questionId])
+  @@index([gamePlayerId, questionId])
   @@map("player_answers")
 }
 

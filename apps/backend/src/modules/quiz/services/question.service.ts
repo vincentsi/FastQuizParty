@@ -186,8 +186,8 @@ export class QuestionService {
       throw new Error('Unauthorized')
     }
 
-    // Update orders
-    await Promise.all(
+    // Update orders - Use transaction for batch updates (more efficient than N queries)
+    await prisma.$transaction(
       questionIds.map((questionId, index) =>
         prisma.question.update({
           where: { id: questionId },
