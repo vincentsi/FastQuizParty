@@ -50,6 +50,7 @@ export const getQuizzesQuerySchema = z.object({
   difficulty: DifficultyEnum.optional(),
   isPublic: z.coerce.boolean().optional(),
   search: z.string().max(100).optional(),
+  authorId: z.string().cuid().optional(),
 })
 
 // Types
