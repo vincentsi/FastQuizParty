@@ -77,8 +77,8 @@ if (typeof window !== 'undefined') {
   }
 
   // Cleanup on module hot reload (development)
-  if (import.meta.hot) {
-    import.meta.hot.dispose(() => {
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    window.addEventListener('beforeunload', () => {
       if (cleanupIntervalId) {
         clearInterval(cleanupIntervalId)
         cleanupIntervalId = null
