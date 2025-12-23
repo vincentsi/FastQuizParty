@@ -1,7 +1,7 @@
 {
-  "name": "fullstack-boilerplate",
+  "name": "fastquizparty",
   "version": "1.0.0",
-  "description": "Fullstack boilerplate with Turborepo, Fastify, Prisma, and Next.js",
+  "description": "FastQuizParty - Plateforme de quiz multijoueur avec Turborepo, Fastify, Prisma, et Next.js",
   "private": true,
   "packageManager": "npm@10.9.3",
   "workspaces": [

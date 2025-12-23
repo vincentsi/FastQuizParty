@@ -19,11 +19,21 @@ const envSchema = z.object({
   // Database
   DATABASE_URL: z.string().url(),
 
-  // JWT Secrets
-  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
+  // JWT Secrets (HS256 requires 256-bit = 64 hex chars for optimal security)
+  JWT_SECRET: z
+    .string()
+    .min(64, 'JWT_SECRET must be at least 64 characters (256-bit)')
+    .regex(
+      /^[a-fA-F0-9]{64}$/,
+      'JWT_SECRET must be exactly 64 hexadecimal characters for HS256'
+    ),
   JWT_REFRESH_SECRET: z
     .string()
-    .min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
+    .min(64, 'JWT_REFRESH_SECRET must be at least 64 characters (256-bit)')
+    .regex(
+      /^[a-fA-F0-9]{64}$/,
+      'JWT_REFRESH_SECRET must be exactly 64 hexadecimal characters for HS256'
+    ),
 
   // Frontend URL for CORS (supports comma-separated list)
   FRONTEND_URL: z

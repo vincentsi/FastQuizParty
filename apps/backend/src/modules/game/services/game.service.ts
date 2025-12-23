@@ -1,6 +1,7 @@
 import { prisma } from '@/config/prisma'
 import { getRedis, isRedisAvailable } from '@/config/redis'
 import { logger } from '@/utils/logger'
+import { DistributedLockService } from '@/services/distributed-lock.service'
 import type { Question } from '@prisma/client'
 import { GameStatus } from '@prisma/client'
 import type { Room } from '../types/room.types'
@@ -147,7 +148,7 @@ export class GameService {
   }
 
   /**
-   * Soumettre une réponse
+   * Soumettre une réponse (avec protection contre les race conditions)
    */
   async submitAnswer(
     gameState: GameState,
@@ -155,84 +156,130 @@ export class GameService {
     answer: number,
     timestamp: number
   ): Promise<SubmitAnswerResult> {
-    const currentQuestion = this.getCurrentQuestion(gameState)
+    // Use distributed lock to prevent race conditions on concurrent answer submissions
+    const lockKey = `game:${gameState.roomId}:player:${playerId}:answer`
 
-    if (!currentQuestion) {
-      throw new Error('No current question')
-    }
+    const result = await DistributedLockService.executeWithLock(
+      lockKey,
+      5000, // 5s TTL (sufficient for answer processing)
+      async () => {
+        // Re-fetch game state inside lock to get latest data
+        const latestGameState = await this.getGameState(gameState.roomId)
+        if (!latestGameState) {
+          throw new Error('Game state not found')
+        }
 
-    // Vérifier si le joueur a déjà répondu
-    const playerAnswers = gameState.playerAnswers.get(playerId) || []
-    const alreadyAnswered = playerAnswers.some(
-      a => a.questionId === currentQuestion.id
+        const currentQuestion = this.getCurrentQuestion(latestGameState)
+
+        if (!currentQuestion) {
+          throw new Error('No current question')
+        }
+
+        // Vérifier si le joueur a déjà répondu (now safe from race conditions)
+        const playerAnswers = latestGameState.playerAnswers.get(playerId) || []
+        const alreadyAnswered = playerAnswers.some(
+          a => a.questionId === currentQuestion.id
+        )
+
+        if (alreadyAnswered) {
+          throw new Error('Already answered this question')
+        }
+
+        // Validate timestamp to prevent cheating
+        const serverTime = Date.now()
+        const timeMs = timestamp - latestGameState.questionStartTime
+
+        if (timestamp > serverTime + 1000) {
+          throw new Error('Invalid timestamp: answer from the future')
+        }
+
+        if (timeMs < 0) {
+          throw new Error('Invalid timestamp: answer before question start')
+        }
+
+        // Enforce time limit
+        if (timeMs > currentQuestion.timeLimit * 1000) {
+          logger.warn(
+            { playerId, questionId: currentQuestion.id, timeMs },
+            'Answer exceeded time limit'
+          )
+          return {
+            isCorrect: false,
+            correctAnswer: currentQuestion.correctAnswer,
+            points: 0,
+            timeMs,
+            newScore: latestGameState.scores.get(playerId) || 0,
+            rank: this.calculateRank(latestGameState, playerId),
+          }
+        }
+
+        // Vérifier la réponse
+        const isCorrect = answer === currentQuestion.correctAnswer
+
+        // Calculer streak + points via ScoringService
+        const streak = this.scoringService.calculateStreak(playerAnswers)
+        const scoreCalc = this.scoringService.calculatePoints(
+          timeMs,
+          currentQuestion.timeLimit * 1000,
+          currentQuestion.points,
+          isCorrect,
+          streak
+        )
+        const points = scoreCalc.totalPoints
+
+        // Enregistrer la réponse
+        const playerAnswer: PlayerAnswer = {
+          questionId: currentQuestion.id,
+          answer,
+          isCorrect,
+          timeMs,
+          points,
+          timestamp,
+        }
+
+        playerAnswers.push(playerAnswer)
+        latestGameState.playerAnswers.set(playerId, playerAnswers)
+
+        // Mettre à jour le score
+        const currentScore = latestGameState.scores.get(playerId) || 0
+        const newScore = currentScore + points
+        latestGameState.scores.set(playerId, newScore)
+
+        // Sauvegarder
+        await this.saveGameState(latestGameState)
+
+        // Calculer le classement
+        const rank = this.calculateRank(latestGameState, playerId)
+
+        logger.info(
+          {
+            playerId,
+            questionId: currentQuestion.id,
+            isCorrect,
+            timeMs,
+            points,
+            newScore,
+            rank,
+          },
+          'Answer submitted'
+        )
+
+        return {
+          isCorrect,
+          correctAnswer: currentQuestion.correctAnswer,
+          points,
+          timeMs,
+          newScore,
+          rank,
+        }
+      }
     )
 
-    if (alreadyAnswered) {
-      throw new Error('Already answered this question')
+    if (result === null) {
+      throw new Error('Could not acquire lock for answer submission')
     }
 
-    // Vérifier la réponse
-    const isCorrect = answer === currentQuestion.correctAnswer
-
-    // Calculer le temps de réponse
-    const timeMs = timestamp - gameState.questionStartTime
-
-    // Calculer streak + points via ScoringService
-    const streak = this.scoringService.calculateStreak(playerAnswers)
-    const scoreCalc = this.scoringService.calculatePoints(
-      timeMs,
-      currentQuestion.timeLimit * 1000,
-      currentQuestion.points,
-      isCorrect,
-      streak
-    )
-    const points = scoreCalc.totalPoints
-
-    // Enregistrer la réponse
-    const playerAnswer: PlayerAnswer = {
-      questionId: currentQuestion.id,
-      answer,
-      isCorrect,
-      timeMs,
-      points,
-      timestamp,
-    }
-
-    playerAnswers.push(playerAnswer)
-    gameState.playerAnswers.set(playerId, playerAnswers)
-
-    // Mettre à jour le score
-    const currentScore = gameState.scores.get(playerId) || 0
-    const newScore = currentScore + points
-    gameState.scores.set(playerId, newScore)
-
-    // Sauvegarder
-    await this.saveGameState(gameState)
-
-    // Calculer le classement
-    const rank = this.calculateRank(gameState, playerId)
-
-    logger.info(
-      {
-        playerId,
-        questionId: currentQuestion.id,
-        isCorrect,
-        timeMs,
-        points,
-        newScore,
-        rank,
-      },
-      'Answer submitted'
-    )
-
-    return {
-      isCorrect,
-      correctAnswer: currentQuestion.correctAnswer,
-      points,
-      timeMs,
-      newScore,
-      rank,
-    }
+    return result
   }
 
   /**

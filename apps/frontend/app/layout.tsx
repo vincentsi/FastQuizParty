@@ -22,25 +22,25 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
   title: {
-    default: "Fullstack Boilerplate - SaaS Starter Kit",
-    template: "%s | Fullstack Boilerplate"
+    default: "FastQuizParty - Plateforme de Quiz Multijoueur",
+    template: "%s | FastQuizParty"
   },
-  description: "Production-ready SaaS boilerplate with authentication, payments, RBAC, and enterprise-grade features. Built with Next.js, Fastify, PostgreSQL, and TypeScript.",
-  keywords: ["SaaS", "boilerplate", "Next.js", "Fastify", "TypeScript", "authentication", "Stripe", "PostgreSQL"],
-  authors: [{ name: "Vincent SI" }],
-  creator: "Vincent SI",
+  description: "Créez et jouez à des quiz interactifs en temps réel. Défie tes amis dans des parties multijoueurs avec FastQuizParty, la plateforme de quiz ultime.",
+  keywords: ["quiz", "jeux", "multijoueur", "trivia", "culture générale", "éducation", "divertissement"],
+  authors: [{ name: "FastQuizParty Team" }],
+  creator: "FastQuizParty",
   openGraph: {
     type: "website",
     locale: "fr_FR",
     url: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
-    title: "Fullstack Boilerplate - SaaS Starter Kit",
-    description: "Production-ready SaaS boilerplate with authentication, payments, RBAC, and enterprise-grade features.",
-    siteName: "Fullstack Boilerplate",
+    title: "FastQuizParty - Plateforme de Quiz Multijoueur",
+    description: "Créez et jouez à des quiz interactifs en temps réel. Défie tes amis dans des parties multijoueurs.",
+    siteName: "FastQuizParty",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Fullstack Boilerplate - SaaS Starter Kit",
-    description: "Production-ready SaaS boilerplate with authentication, payments, RBAC, and enterprise-grade features.",
+    title: "FastQuizParty - Plateforme de Quiz Multijoueur",
+    description: "Créez et jouez à des quiz interactifs en temps réel. Défie tes amis dans des parties multijoueurs.",
   },
   robots: {
     index: true,

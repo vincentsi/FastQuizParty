@@ -14,7 +14,7 @@ export function DashboardNav() {
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <div className="flex items-center gap-8">
           <Link href="/dashboard" className="text-xl font-bold" prefetch>
-            Boilerplate
+            FastQuizParty
           </Link>
 
           <div className="flex gap-4">

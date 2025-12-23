@@ -1,35 +1,27 @@
 'use client'
 
-import { useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/providers/auth.provider'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
-import { LogOut, User, Menu, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { LogOut, User } from 'lucide-react'
 
 export function MainNav() {
   const { user, logout } = useAuth()
-  const [showSubNav, setShowSubNav] = useState(false)
 
   return (
     <>
       {/* Main Header */}
-      <nav className="border-b bg-white dark:bg-gray-900 dark:border-gray-800">
+      <nav className="border-b bg-white dark:bg-gray-900 dark:border-gray-800 fixed top-0 left-0 right-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-8">
-            <button
-              onClick={() => setShowSubNav(!showSubNav)}
+            <Link
+              href="/dashboard"
               className="text-xl font-bold hover:text-primary transition-colors flex items-center gap-2"
             >
               <span className="text-2xl">FQ</span>
               <span>FastQuizParty</span>
-              {showSubNav ? (
-                <X className="h-5 w-5" />
-              ) : (
-                <Menu className="h-5 w-5" />
-              )}
-            </button>
+            </Link>
           </div>
 
           <div className="flex items-center gap-4">
@@ -66,19 +58,20 @@ export function MainNav() {
         </div>
       </nav>
 
-      {/* Sub Navigation */}
-      <div
-        className={cn(
-          'border-b bg-slate-50 dark:bg-gray-800 dark:border-gray-700 overflow-hidden transition-all duration-300',
-          showSubNav ? 'max-h-16' : 'max-h-0'
-        )}
-      >
-        <div className="container mx-auto px-4 py-4 flex gap-6">
+      {/* Sub Navigation - Always Visible */}
+      <div className="border-b bg-slate-50 dark:bg-gray-800 dark:border-gray-700 border-t-0 fixed top-[57px] left-0 right-0 z-50">
+        <div className="container mx-auto px-4 py-3 flex gap-6">
           <Link
             href="/quizzes"
             className="text-sm font-medium hover:text-primary transition-colors"
           >
             Quizzes
+          </Link>
+          <Link
+            href="/quizzes/create"
+            className="text-sm font-medium hover:text-primary transition-colors"
+          >
+            Create Quiz
           </Link>
           <Link
             href="/rooms"

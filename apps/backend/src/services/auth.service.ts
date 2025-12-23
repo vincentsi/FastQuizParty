@@ -70,9 +70,14 @@ export class AuthService {
    * Hash a password with bcrypt
    * @param password - Plain text password
    * @returns Hashed password
+   *
+   * Using 12 rounds (OWASP recommendation as of 2024):
+   * - 10 rounds: ~100ms (too fast, vulnerable to GPU attacks)
+   * - 12 rounds: ~250ms (optimal security/UX balance)
+   * - 14 rounds: ~1000ms (too slow for user experience)
    */
   async hashPassword(password: string): Promise<string> {
-    const saltRounds = 10
+    const saltRounds = 12
     return bcrypt.hash(password, saltRounds)
   }
 

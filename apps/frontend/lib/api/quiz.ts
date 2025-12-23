@@ -64,6 +64,7 @@ export type GetQuizzesQuery = {
   difficulty?: Difficulty
   isPublic?: boolean
   search?: string
+  authorId?: string
 }
 
 export type GetQuizzesResponse = {
@@ -138,6 +139,7 @@ export const quizApi = {
     if (query.difficulty) params.append('difficulty', query.difficulty)
     if (query.isPublic !== undefined) params.append('isPublic', query.isPublic.toString())
     if (query.search) params.append('search', query.search)
+    if (query.authorId) params.append('authorId', query.authorId)
 
     const response = await apiClient.get<{ success: boolean; data: GetQuizzesResponse }>(
       `/api/quiz?${params.toString()}`

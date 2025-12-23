@@ -19,6 +19,7 @@ import { gdprRoutes } from '@/routes/gdpr.route'
 import { quizRoutes } from '@/modules/quiz/routes/quiz.route'
 import { aiRoutes } from '@/modules/ai/routes/ai.routes'
 import { gameRoutes } from '@/modules/game/routes/game.route'
+import { categoryRoutes } from '@/modules/category/routes/category.routes'
 
 /**
  * Create and configure Fastify application
@@ -57,8 +58,8 @@ export async function createApp(): Promise<FastifyInstance> {
   await app.register(swagger, {
     openapi: {
       info: {
-        title: 'Fullstack Boilerplate API',
-        description: 'Complete REST API with authentication, RBAC, Stripe subscriptions, and more',
+        title: 'FastQuizParty API',
+        description: 'API pour la plateforme de quiz multijoueur - Quiz interactifs, parties en temps réel, et bien plus',
         version: '1.0.0',
       },
       servers: [
@@ -147,6 +148,7 @@ export async function createApp(): Promise<FastifyInstance> {
   await app.register(quizRoutes, { prefix: '/api' })
   await app.register(aiRoutes, { prefix: '/api/ai' })
   await app.register(gameRoutes, { prefix: '/api' })
+  await app.register(categoryRoutes, { prefix: '/api/category' })
 
   return app
 }
