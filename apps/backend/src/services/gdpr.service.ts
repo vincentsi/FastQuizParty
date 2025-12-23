@@ -56,6 +56,33 @@ export class GDPRService {
         stripePriceId: string
         stripeCustomerId: string
       }>
+      hostedGames: Array<{
+        id: string
+        code: string
+        quizId: string
+        status: string
+        startedAt: string | null
+        finishedAt: string | null
+        createdAt: string
+      }>
+      playedGames: Array<{
+        gameId: string
+        username: string
+        score: number
+        rank: number | null
+        correctAnswers: number
+        totalAnswers: number
+        joinedAt: string
+      }>
+      createdQuizzes: Array<{
+        id: string
+        title: string
+        description: string | null
+        isPublic: boolean
+        isPremium: boolean
+        createdAt: string
+      }>
+      stats: unknown
     }
   }> {
     // Fetch user with all related data

@@ -200,7 +200,7 @@ describe('AuthService', () => {
       expect(result).toHaveProperty('accessToken')
       expect(result).toHaveProperty('refreshToken')
       expect(result.user.email).toBe('newuser@example.com')
-      expect(bcrypt.hash).toHaveBeenCalledWith('test123', 10)
+      expect(bcrypt.hash).toHaveBeenCalledWith('test123', 12)
     })
 
     it('should fail if email already exists', async () => {

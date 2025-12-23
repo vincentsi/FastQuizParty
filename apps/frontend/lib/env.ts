@@ -28,7 +28,8 @@ const envSchema = z.object({
         url.startsWith('ws://') ||
         url.startsWith('wss://'),
       'NEXT_PUBLIC_WS_URL must start with http://, https://, ws://, or wss://'
-    ),
+    )
+    .optional(),
 
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z
     .string()
@@ -45,7 +46,7 @@ const envSchema = z.object({
  */
 const parsed = envSchema.safeParse({
   NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
-  NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL,
+  NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL || process.env.NEXT_PUBLIC_API_URL,
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:
     process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
 })

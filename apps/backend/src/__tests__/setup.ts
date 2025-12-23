@@ -8,8 +8,8 @@
 // Set test environment variables
 process.env.NODE_ENV = 'test'
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:0771@localhost:5432/fastquizparty_test'
-process.env.JWT_SECRET = 'test-jwt-secret-min-32-chars-required-for-testing-purposes'
-process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-min-32-chars-required-for-testing'
+process.env.JWT_SECRET = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+process.env.JWT_REFRESH_SECRET = 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210'
 process.env.PORT = '3002'
 
 // Mock Redis in tests (optional, can be real Redis or mocked)

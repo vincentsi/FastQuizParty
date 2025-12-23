@@ -173,6 +173,7 @@ jobs:
         run: cd apps/frontend && npm run build
         env:
           NEXT_PUBLIC_API_URL: http://localhost:3001
+          NEXT_PUBLIC_WS_URL: http://localhost:3001
 
   # ===== Summary Job =====
   ci-success:
