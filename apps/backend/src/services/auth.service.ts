@@ -479,7 +479,6 @@ export class AuthService {
       throw new Error('Account has been deleted')
     }
 
-    // If email is being updated, check if new email is already in use
     if (data.email && data.email !== user.email) {
       const existingUser = await prisma.user.findUnique({
         where: { email: data.email },
@@ -488,14 +487,27 @@ export class AuthService {
       if (existingUser) {
         throw new Error('Email already in use')
       }
+
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          name: data.name !== undefined ? data.name : user.name,
+          email: data.email,
+          emailVerified: false,
+        },
+      })
+
+      const { VerificationService } = await import('./verification.service')
+      await VerificationService.createVerificationToken(userId, data.email)
+
+      const { password: _, ...userWithoutPassword } = updatedUser
+      return userWithoutPassword
     }
 
-    // Update user
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
         name: data.name !== undefined ? data.name : user.name,
-        email: data.email || user.email,
       },
     })
 

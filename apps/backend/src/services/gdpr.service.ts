@@ -103,6 +103,39 @@ export class GDPRService {
             stripeCustomerId: true,
           },
         },
+        hostedGames: {
+          select: {
+            id: true,
+            code: true,
+            quizId: true,
+            status: true,
+            startedAt: true,
+            finishedAt: true,
+            createdAt: true,
+          },
+        },
+        playedGames: {
+          select: {
+            gameId: true,
+            username: true,
+            score: true,
+            rank: true,
+            correctAnswers: true,
+            totalAnswers: true,
+            joinedAt: true,
+          },
+        },
+        createdQuizzes: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            isPublic: true,
+            isPremium: true,
+            createdAt: true,
+          },
+        },
+        stats: true,
       },
     })
 
@@ -118,6 +151,10 @@ export class GDPRService {
       resetTokens: _resetTokens,
       csrfTokens: _csrfTokens,
       subscriptions: _subscriptions,
+      hostedGames: _hostedGames,
+      playedGames: _playedGames,
+      createdQuizzes: _createdQuizzes,
+      stats: _stats,
     } = user
 
     // Convert dates to ISO strings for JSON serialization
@@ -183,6 +220,33 @@ export class GDPRService {
           stripePriceId: String(s.stripePriceId),
           stripeCustomerId: String(s.stripeCustomerId),
         })),
+        hostedGames: user.hostedGames.map(g => ({
+          id: String(g.id),
+          code: String(g.code),
+          quizId: String(g.quizId),
+          status: String(g.status),
+          startedAt: g.startedAt ? g.startedAt.toISOString() : null,
+          finishedAt: g.finishedAt ? g.finishedAt.toISOString() : null,
+          createdAt: g.createdAt.toISOString(),
+        })),
+        playedGames: user.playedGames.map(p => ({
+          gameId: String(p.gameId),
+          username: String(p.username),
+          score: Number(p.score),
+          rank: p.rank ? Number(p.rank) : null,
+          correctAnswers: Number(p.correctAnswers),
+          totalAnswers: Number(p.totalAnswers),
+          joinedAt: p.joinedAt.toISOString(),
+        })),
+        createdQuizzes: user.createdQuizzes.map(q => ({
+          id: String(q.id),
+          title: String(q.title),
+          description: q.description ? String(q.description) : null,
+          isPublic: Boolean(q.isPublic),
+          isPremium: Boolean(q.isPremium),
+          createdAt: q.createdAt.toISOString(),
+        })),
+        stats: user.stats,
       },
     }
   }

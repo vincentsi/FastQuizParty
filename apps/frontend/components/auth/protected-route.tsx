@@ -1,22 +1,19 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/providers/auth.provider'
 
-/**
- * HOC to protect routes
- * Redirects to /login if not authenticated
- */
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
+  const routerRef = useRef(router)
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      router.push('/login')
+      routerRef.current.push('/login')
     }
-  }, [isAuthenticated, isLoading, router])
+  }, [isAuthenticated, isLoading])
 
   if (isLoading) {
     return (

@@ -1,6 +1,7 @@
 import { io, Socket } from 'socket.io-client'
+import { env } from '@/lib/env'
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001'
+const SOCKET_URL = env.NEXT_PUBLIC_WS_URL
 
 class SocketClient {
   private socket: Socket | null = null

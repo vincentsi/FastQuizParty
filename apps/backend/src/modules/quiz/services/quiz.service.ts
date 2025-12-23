@@ -37,17 +37,19 @@ export class QuizService {
       where.isPublic = true
     }
 
-    // Build AND conditions for complex queries
     const andConditions: Prisma.QuizWhereInput[] = []
 
-    // Search condition
     if (search) {
-      andConditions.push({
-        OR: [
-          { title: { contains: search, mode: 'insensitive' } },
-          { description: { contains: search, mode: 'insensitive' } },
-        ],
-      })
+      const sanitizedSearch = search.replace(/[%_\\]/g, '\\$&').trim()
+
+      if (sanitizedSearch && sanitizedSearch.length > 0) {
+        andConditions.push({
+          OR: [
+            { title: { contains: sanitizedSearch, mode: 'insensitive' } },
+            { description: { contains: sanitizedSearch, mode: 'insensitive' } },
+          ],
+        })
+      }
     }
 
     // If authenticated and no explicit isPublic filter and no authorId filter, show public quizzes + user's own quizzes

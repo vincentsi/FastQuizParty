@@ -26,6 +26,13 @@ export default function SoloPlayPage() {
   const [timeRemaining, setTimeRemaining] = useState(15)
   const [finished, setFinished] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const quizRef = useRef(quiz)
+  const currentQuestionIndexRef = useRef(currentQuestionIndex)
+
+  useEffect(() => {
+    quizRef.current = quiz
+    currentQuestionIndexRef.current = currentQuestionIndex
+  }, [quiz, currentQuestionIndex])
 
   const handleAnswer = useCallback(
     (answerIndex: number) => {
@@ -94,7 +101,6 @@ export default function SoloPlayPage() {
     setSelectedAnswer(null)
     setShowResult(false)
 
-    // Start timer for this question
     timerRef.current = setInterval(() => {
       setTimeRemaining(prev => {
         if (prev <= 1) {
@@ -102,8 +108,8 @@ export default function SoloPlayPage() {
             clearInterval(timerRef.current)
             timerRef.current = null
           }
-          // Handle timeout - answer with -1 to indicate timeout
-          const question = quiz.questions[currentQuestionIndex]
+          const question =
+            quizRef.current?.questions[currentQuestionIndexRef.current]
           if (question) {
             setSelectedAnswer(-1)
             setShowResult(true)

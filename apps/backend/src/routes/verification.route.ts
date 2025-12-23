@@ -13,27 +13,25 @@ export async function verificationRoutes(fastify: FastifyInstance) {
   // GET /api/verification/verify-email?token=xxx
   fastify.get('/verify-email', { schema: verifyEmailSchema }, controller.verifyEmail.bind(controller))
 
-  // POST /api/verification/resend-verification
-  // Rate limit: 3 requests per hour (prevent spam) (disabled in dev/test)
-  // Key generator: IP (prevent email spam)
   fastify.post(
     '/resend-verification',
     {
       schema: resendVerificationSchema,
       config:
-        env.NODE_ENV === 'production'
+        env.NODE_ENV !== 'test'
           ? {
               rateLimit: {
                 max: 3,
                 timeWindow: '1 hour',
                 keyGenerator: (request) => {
-                  // Rate limit by IP to prevent email spam
-                  return `verification:resend:${request.ip}`
+                  const body = request.body as { email?: string }
+                  return `verification:resend:${request.ip}:${body?.email || 'unknown'}`
                 },
                 errorResponseBuilder: () => ({
                   statusCode: 429,
                   error: 'Too Many Requests',
-                  message: 'Too many verification email requests. Try again in 1 hour.',
+                  message:
+                    'Too many verification email requests. Try again in 1 hour.',
                 }),
               },
             }

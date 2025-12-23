@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { authApi, type LoginDTO, type RegisterDTO } from '@/lib/api/auth'
@@ -41,26 +41,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsInitialized(true)
   }, [])
 
-  // Proactive token refresh every 10 minutes (before 15 min expiration)
-  useEffect(() => {
-    if (!data) return // Not authenticated
+  const isAuthenticatedRef = useRef(false)
 
+  useEffect(() => {
+    isAuthenticatedRef.current = !!data
+  }, [data])
+
+  useEffect(() => {
     const refreshInterval = setInterval(async () => {
+      if (!isAuthenticatedRef.current) return
+
       try {
-        // Call refresh endpoint to get new tokens
         await authApi.refresh()
-        // Invalidate user query to refetch with new token
         queryClient.invalidateQueries({ queryKey: ['me'] })
       } catch (error) {
-        // If refresh fails, the axios interceptor will handle redirect to login
         console.error('Failed to refresh token:', error)
       }
-    }, 10 * 60 * 1000) // 10 minutes (before 15 min expiration)
+    }, 10 * 60 * 1000)
 
-    return () => {
-      clearInterval(refreshInterval)
-    }
-  }, [data, queryClient])
+    return () => clearInterval(refreshInterval)
+  }, [queryClient])
 
   // Mutation for login
   const loginMutation = useMutation({

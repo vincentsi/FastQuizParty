@@ -139,18 +139,20 @@ export class PasswordResetService {
 
     const hashedPassword = await authService.hashPassword(newPassword)
 
-    await prisma.user.update({
-      where: { id: resetToken.userId },
-      data: { password: hashedPassword },
-    })
+    await prisma.$transaction(async tx => {
+      await tx.user.update({
+        where: { id: resetToken.userId },
+        data: { password: hashedPassword },
+      })
 
-    await prisma.passwordResetToken.deleteMany({
-      where: { userId: resetToken.userId },
-    })
+      await tx.passwordResetToken.deleteMany({
+        where: { userId: resetToken.userId },
+      })
 
-    await prisma.refreshToken.updateMany({
-      where: { userId: resetToken.userId },
-      data: { revoked: true },
+      await tx.refreshToken.updateMany({
+        where: { userId: resetToken.userId },
+        data: { revoked: true },
+      })
     })
 
     return { success: true }

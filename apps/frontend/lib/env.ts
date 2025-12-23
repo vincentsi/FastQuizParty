@@ -10,7 +10,6 @@ import { z } from 'zod'
  * If env vars are invalid, build will fail (fail-fast)
  */
 const envSchema = z.object({
-  // API URL (REQUIRED)
   NEXT_PUBLIC_API_URL: z
     .string()
     .url('NEXT_PUBLIC_API_URL must be a valid URL')
@@ -19,7 +18,18 @@ const envSchema = z.object({
       'NEXT_PUBLIC_API_URL must start with http:// or https://'
     ),
 
-  // Stripe Publishable Key (OPTIONAL)
+  NEXT_PUBLIC_WS_URL: z
+    .string()
+    .url('NEXT_PUBLIC_WS_URL must be a valid URL')
+    .refine(
+      url =>
+        url.startsWith('http://') ||
+        url.startsWith('https://') ||
+        url.startsWith('ws://') ||
+        url.startsWith('wss://'),
+      'NEXT_PUBLIC_WS_URL must start with http://, https://, ws://, or wss://'
+    ),
+
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z
     .string()
     .optional()
@@ -35,6 +45,7 @@ const envSchema = z.object({
  */
 const parsed = envSchema.safeParse({
   NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+  NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL,
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:
     process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
 })
