@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { QuizCard } from './quiz-card'
 import type { Quiz } from '@/lib/api/quiz'
 
@@ -8,7 +9,7 @@ interface QuizListProps {
   emptyMessage?: string
 }
 
-export function QuizList({ quizzes, emptyMessage = 'No quizzes found' }: QuizListProps) {
+const QuizListComponent = ({ quizzes, emptyMessage = 'No quizzes found' }: QuizListProps) => {
   if (quizzes.length === 0) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
@@ -27,3 +28,6 @@ export function QuizList({ quizzes, emptyMessage = 'No quizzes found' }: QuizLis
     </div>
   )
 }
+
+// Memoize to prevent re-renders when parent state changes but quizzes array is the same
+export const QuizList = memo(QuizListComponent)

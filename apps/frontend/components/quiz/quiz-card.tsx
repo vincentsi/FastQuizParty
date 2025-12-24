@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { memo } from 'react'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,7 +12,7 @@ interface QuizCardProps {
   quiz: Quiz
 }
 
-export function QuizCard({ quiz }: QuizCardProps) {
+const QuizCardComponent = ({ quiz }: QuizCardProps) => {
   const questionCount = quiz._count?.questions || quiz.questions?.length || 0
 
   const difficultyColors = {
@@ -95,7 +96,7 @@ export function QuizCard({ quiz }: QuizCardProps) {
 
       <CardFooter className="flex gap-2">
         <Button asChild className="flex-1">
-          <Link href={`/quiz/${quiz.id}`}>
+          <Link href={`/quiz/${quiz.id}`} prefetch={true}>
             <TrendingUp className="mr-2 h-4 w-4" />
             Play Quiz
           </Link>
@@ -104,3 +105,6 @@ export function QuizCard({ quiz }: QuizCardProps) {
     </Card>
   )
 }
+
+// Memoize to prevent unnecessary re-renders when parent re-renders
+export const QuizCard = memo(QuizCardComponent)

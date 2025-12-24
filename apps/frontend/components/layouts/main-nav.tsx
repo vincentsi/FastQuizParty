@@ -17,6 +17,7 @@ export function MainNav() {
           <div className="flex items-center gap-8">
             <Link
               href="/dashboard"
+              prefetch={true}
               className="text-xl font-bold hover:text-primary transition-colors flex items-center gap-2"
             >
               <span className="text-2xl">FQ</span>
@@ -42,12 +43,12 @@ export function MainNav() {
             ) : (
               <>
                 <ThemeToggle />
-                <Link href="/login">
+                <Link href="/login" prefetch={true}>
                   <Button variant="outline" size="sm">
                     Login
                   </Button>
                 </Link>
-                <Link href="/register">
+                <Link href="/register" prefetch={true}>
                   <Button size="sm">
                     Sign up
                   </Button>
@@ -63,24 +64,28 @@ export function MainNav() {
         <div className="container mx-auto px-4 py-3 flex gap-6">
           <Link
             href="/quizzes"
+            prefetch={true}
             className="text-sm font-medium hover:text-primary transition-colors"
           >
             Quizzes
           </Link>
           <Link
             href="/quizzes/create"
+            prefetch={true}
             className="text-sm font-medium hover:text-primary transition-colors"
           >
             Create Quiz
           </Link>
           <Link
             href="/rooms"
+            prefetch={true}
             className="text-sm font-medium hover:text-primary transition-colors"
           >
             Rooms
           </Link>
           <Link
             href="/play"
+            prefetch={true}
             className="text-sm font-medium hover:text-primary transition-colors"
           >
             Play
@@ -88,6 +93,7 @@ export function MainNav() {
           {user?.role === 'ADMIN' && (
             <Link
               href="/admin"
+              prefetch={true}
               className="text-sm font-medium hover:text-primary transition-colors text-red-600"
             >
               Admin

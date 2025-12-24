@@ -11,6 +11,7 @@ jest.mock('../../../config/prisma', () => ({
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     refreshToken: {
       create: jest.fn(),
@@ -78,11 +79,8 @@ describe('AuthService', () => {
 
       ;(prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser)
       ;(bcrypt.compare as jest.Mock).mockResolvedValue(true)
-      ;(prisma.user.update as jest.Mock).mockResolvedValue({
-        ...mockUser,
-        lastLoginAt: new Date(),
-        lastLoginIp: '127.0.0.1',
-        loginCount: 1,
+      ;(prisma.user.updateMany as jest.Mock).mockResolvedValue({
+        count: 1,
       })
       ;(prisma.refreshToken.create as jest.Mock).mockResolvedValue({
         id: 'token_123',
@@ -102,8 +100,30 @@ describe('AuthService', () => {
       expect(result.user.email).toBe('test@example.com')
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { email: 'test@example.com' },
+        select: {
+          id: true,
+          email: true,
+          password: true,
+          role: true,
+          name: true,
+          emailVerified: true,
+          deletedAt: true,
+          stripeCustomerId: true,
+          subscriptionStatus: true,
+          subscriptionId: true,
+          planType: true,
+          currentPeriodEnd: true,
+          lastLoginAt: true,
+          lastLoginIp: true,
+          loginCount: true,
+          premiumUntil: true,
+          aiQuota: true,
+          aiQuotaResetAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       })
-      expect(prisma.user.update).toHaveBeenCalledWith({
+      expect(prisma.user.updateMany).toHaveBeenCalledWith({
         where: { id: 'user_123' },
         data: {
           lastLoginAt: expect.any(Date),

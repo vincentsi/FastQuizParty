@@ -14,16 +14,20 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Search, Filter } from 'lucide-react'
+import { useDebounce } from '@/lib/hooks/useDebounce'
 
 export default function QuizzesPage() {
   const [search, setSearch] = useState('')
   const [difficulty, setDifficulty] = useState<Difficulty | 'ALL'>('ALL')
   const [page, setPage] = useState(1)
 
+  // Debounce search to reduce API calls (300ms delay)
+  const debouncedSearch = useDebounce(search, 300)
+
   const queryParams: GetQuizzesQuery = {
     page,
     limit: 12,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     difficulty: difficulty !== 'ALL' ? difficulty : undefined,
     isPublic: true,
   }
@@ -31,6 +35,7 @@ export default function QuizzesPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['quizzes', queryParams],
     queryFn: () => quizApi.getQuizzes(queryParams),
+    staleTime: 2 * 60 * 1000, // 2 minutes for quiz list (data changes less frequently)
   })
 
   return (

@@ -221,8 +221,10 @@ export class AuthService {
     accessToken: string
     refreshToken: string
   }> {
+    // Performance: Only select id field (we just need to check existence)
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
+      select: { id: true },
     })
 
     if (existingUser) {
@@ -288,8 +290,31 @@ export class AuthService {
     accessToken: string
     refreshToken: string
   }> {
+    // Performance: Only select needed fields for login
     const user = await prisma.user.findUnique({
       where: { email: data.email },
+      select: {
+        id: true,
+        email: true,
+        password: true,
+        role: true,
+        name: true,
+        emailVerified: true,
+        deletedAt: true,
+        stripeCustomerId: true,
+        subscriptionStatus: true,
+        subscriptionId: true,
+        planType: true,
+        currentPeriodEnd: true,
+        lastLoginAt: true,
+        lastLoginIp: true,
+        loginCount: true,
+        premiumUntil: true,
+        aiQuota: true,
+        aiQuotaResetAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     })
 
     // Timing attack protection: always run bcrypt.compare even if user doesn't exist
@@ -309,15 +334,21 @@ export class AuthService {
       throw new Error('Account has been deleted')
     }
 
-    // Update audit trail
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        lastLoginAt: new Date(),
-        lastLoginIp: ipAddress,
-        loginCount: { increment: 1 },
-      },
-    })
+    // Performance: Update audit trail asynchronously (non-blocking)
+    // Using updateMany instead of update to avoid fetching the record
+    prisma.user
+      .updateMany({
+        where: { id: user.id },
+        data: {
+          lastLoginAt: new Date(),
+          lastLoginIp: ipAddress,
+          loginCount: { increment: 1 },
+        },
+      })
+      .catch((error) => {
+        // Log error but don't fail login if audit trail update fails
+        console.error('Failed to update audit trail:', error)
+      })
 
     const accessToken = this.generateAccessToken(user.id, user.role, user.email)
     const refreshToken = this.generateRefreshToken(user.id)
@@ -466,8 +497,15 @@ export class AuthService {
     userId: string,
     data: { name?: string; email?: string }
   ): Promise<Omit<User, 'password'>> {
+    // Performance: Only select needed fields
     const user = await prisma.user.findUnique({
       where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        deletedAt: true,
+      },
     })
 
     if (!user) {
@@ -480,8 +518,10 @@ export class AuthService {
     }
 
     if (data.email && data.email !== user.email) {
+      // Performance: Only check existence with id field
       const existingUser = await prisma.user.findUnique({
         where: { email: data.email },
+        select: { id: true },
       })
 
       if (existingUser) {

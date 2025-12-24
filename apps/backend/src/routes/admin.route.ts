@@ -78,6 +78,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
     /**
      * List all subscriptions with pagination
      * GET /api/admin/subscriptions?page=1&limit=20&sortBy=createdAt&sortOrder=desc
+     *
+     * Performance: Uses include instead of nested select for better Prisma optimization
+     * Prisma's dataloader automatically batches user lookups with include
      */
     fastify.get<{
       Querystring: PaginationQuery
@@ -89,17 +92,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
           () =>
             prisma.subscription.findMany({
               ...paginationParams.prismaParams,
-              select: {
-                id: true,
-                stripeSubscriptionId: true,
-                stripePriceId: true,
-                status: true,
-                planType: true,
-                currentPeriodStart: true,
-                currentPeriodEnd: true,
-                cancelAtPeriodEnd: true,
-                canceledAt: true,
-                createdAt: true,
+              include: {
                 user: {
                   select: {
                     id: true,
